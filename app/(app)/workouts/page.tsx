@@ -14,7 +14,7 @@ export default async function WorkoutsPage({ searchParams }: PageProps) {
   const workouts = await getWorkouts(dateRange)
 
   const totalVolume = workouts.reduce((total, w) => {
-    const vol = (w.workout_exercises ?? []).reduce((s: number, e) => {
+    const vol = (w.workout_exercises ?? []).reduce((s: number, e: any) => {
       return s + (e.sets ?? 0) * (e.reps ?? 0) * (e.weight ?? 0)
     }, 0)
     return total + vol
