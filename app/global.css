@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 13% 9%;
+    --foreground: 210 20% 95%;
+    --card: 220 13% 12%;
+    --card-foreground: 210 20% 95%;
+    --popover: 220 13% 12%;
+    --popover-foreground: 210 20% 95%;
+    --primary: 142 72% 55%;
+    --primary-foreground: 220 13% 9%;
+    --secondary: 220 13% 16%;
+    --secondary-foreground: 210 20% 85%;
+    --muted: 220 13% 16%;
+    --muted-foreground: 215 16% 55%;
+    --accent: 142 72% 55%;
+    --accent-foreground: 220 13% 9%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 20% 95%;
+    --border: 220 13% 18%;
+    --input: 220 13% 16%;
+    --ring: 142 72% 55%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  html { scroll-behavior: smooth; }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) opacity(0.4);
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .card-glow {
+    box-shadow: 0 0 0 1px hsl(220 13% 18%), 0 4px 24px -4px hsl(0 0% 0% / 0.4);
+  }
+  .stat-card {
+    @apply bg-card rounded-xl p-4 card-glow;
+  }
+  .progress-bar {
+    @apply h-2 rounded-full bg-secondary overflow-hidden;
+  }
+  .progress-fill {
+    @apply h-full rounded-full transition-all duration-500;
+    background: linear-gradient(90deg, hsl(142 72% 45%), hsl(142 72% 65%));
+  }
+  .bottom-nav {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+  .press-effect {
+    @apply transition-transform active:scale-95;
+  }
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(220 13% 25%); border-radius: 2px; }
+
+.recharts-cartesian-axis-tick-value {
+  fill: hsl(215 16% 55%) !important;
+  font-size: 11px;
+}
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: hsl(220 13% 16%) !important;
+}
