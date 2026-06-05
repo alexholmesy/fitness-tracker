@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Scale, Flame, Footprints,
-  Dumbbell, BarChart3
+  Dumbbell, BarChart3, Heart, Moon, Droplets,
+  Camera, FileText, Settings
 } from 'lucide-react'
 
 const navItems = [
@@ -15,11 +16,27 @@ const navItems = [
   { href: '/analytics', icon: BarChart3, label: 'Analytics' },
 ]
 
+const allNavItems = [
+  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/weight', icon: Scale, label: 'Weight' },
+  { href: '/calories', icon: Flame, label: 'Calories' },
+  { href: '/steps', icon: Footprints, label: 'Steps' },
+  { href: '/workouts', icon: Dumbbell, label: 'Workouts' },
+  { href: '/cardio', icon: Heart, label: 'Cardio' },
+  { href: '/sleep', icon: Moon, label: 'Sleep' },
+  { href: '/water', icon: Droplets, label: 'Water' },
+  { href: '/photos', icon: Camera, label: 'Photos' },
+  { href: '/notes', icon: FileText, label: 'Notes' },
+  { href: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { href: '/settings', icon: Settings, label: 'Settings' },
+]
+
 export function BottomNav() {
   const pathname = usePathname()
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border bottom-nav">
-      <div className="flex items-center justify-around px-2 pt-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className="flex items-center justify-around px-2 pt-2 pb-2">
         {navItems.map(({ href, icon: Icon, label }) => {
           const active = pathname === href
           return (
@@ -42,14 +59,6 @@ export function BottomNav() {
 
 export function SidebarNav() {
   const pathname = usePathname()
-  const allNavItems = [
-    { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { href: '/weight', icon: Scale, label: 'Weight' },
-    { href: '/calories', icon: Flame, label: 'Calories' },
-    { href: '/steps', icon: Footprints, label: 'Steps' },
-    { href: '/workouts', icon: Dumbbell, label: 'Workouts' },
-    { href: '/analytics', icon: BarChart3, label: 'Analytics' },
-  ]
   return (
     <nav className="space-y-1">
       {allNavItems.map(({ href, icon: Icon, label }) => {
