@@ -9,19 +9,25 @@ import type { DashboardStats } from '@/types'
 
 type QuickLogType = 'weight' | 'calories' | 'steps' | 'water' | null
 
-export function DashboardClient({ stats, onSave }: { stats: DashboardStats, onSave: () => void }) {
+const ALL_QUICK_ACTIONS = [
+  { type: 'weight' as const, icon: Scale, label: 'Weight', color: 'text-primary', bg: 'bg-primary/10' },
+  { type: 'calories' as const, icon: Flame, label: 'Calories', color: 'text-orange-400', bg: 'bg-orange-400/10' },
+  { type: 'steps' as const, icon: Footprints, label: 'Steps', color: 'text-blue-400', bg: 'bg-blue-400/10' },
+  { type: 'water' as const, icon: Droplets, label: 'Water', color: 'text-cyan-400', bg: 'bg-cyan-400/10' },
+]
+
+export function DashboardClient({ stats, onSave, quickLog }: {
+  stats: DashboardStats
+  onSave: () => void
+  quickLog: string[]
+}) {
   const [activeLog, setActiveLog] = useState<QuickLogType>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
   const today = format(new Date(), 'yyyy-MM-dd')
 
-  const quickActions = [
-    { type: 'weight' as const, icon: Scale, label: 'Weight', color: 'text-primary', bg: 'bg-primary/10' },
-    { type: 'calories' as const, icon: Flame, label: 'Calories', color: 'text-orange-400', bg: 'bg-orange-400/10' },
-    { type: 'steps' as const, icon: Footprints, label: 'Steps', color: 'text-blue-400', bg: 'bg-blue-400/10' },
-    { type: 'water' as const, icon: Droplets, label: 'Water', color: 'text-cyan-400', bg: 'bg-cyan-400/10' },
-  ]
+  const visibleActions = ALL_QUICK_ACTIONS.filter(a => quickLog.includes(a.type))
 
   const handleQuickLog = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -62,10 +68,12 @@ export function DashboardClient({ stats, onSave }: { stats: DashboardStats, onSa
 
   const config = activeLog ? configs[activeLog] : null
 
+  if (visibleActions.length === 0) return null
+
   return (
     <>
-      <div className="grid grid-cols-4 gap-2">
-        {quickActions.map(({ type, icon: Icon, label, color, bg }) => (
+      <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${visibleActions.length}, 1fr)` }}>
+        {visibleActions.map(({ type, icon: Icon, label, color, bg }) => (
           <button
             key={type}
             onClick={() => setActiveLog(type)}
