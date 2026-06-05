@@ -166,8 +166,9 @@ export default function DashboardPage() {
   }
 
   const visibleProgressBars = dashboardStats
-    .map(id => progressBars[id])
-    .filter(Boolean)
+  .map((id: string) => progressBars[id])
+  .filter(Boolean)
+
 
   return (
     <div className="space-y-5 px-4 pb-6 animate-fade-in">
