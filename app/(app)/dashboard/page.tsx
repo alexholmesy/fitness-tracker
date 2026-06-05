@@ -182,7 +182,7 @@ export default function DashboardPage() {
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Today</h2>
         <div className="grid grid-cols-2 gap-3">
-          {dashboardStats.map(id => statCards[id]).filter(Boolean)}
+          {dashboardStats.map((id: string) => statCards[id]).filter(Boolean)}
         </div>
         {visibleProgressBars.length > 0 && (
           <div className="stat-card space-y-3">
