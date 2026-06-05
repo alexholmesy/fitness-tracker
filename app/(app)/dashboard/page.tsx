@@ -50,6 +50,9 @@ export default function DashboardPage() {
       ? Math.round(weekSleep.reduce((s: number, e: any) => s + e.hours_slept, 0) / weekSleep.length * 10) / 10
       : null
 
+    const quickLog = profile?.dashboard_quick_log ?? ['weight', 'calories', 'steps', 'water']
+    const dashboardStats = profile?.dashboard_stats ?? ['calories', 'steps', 'water', 'weight', 'workouts', 'sleep']
+
     setData({
       stats: {
         currentWeight: latestWeight?.weight ?? null,
@@ -63,6 +66,8 @@ export default function DashboardPage() {
         waterTarget: profile?.water_target ?? 2.5,
         weightChangeWeek: null,
       },
+      quickLog,
+      dashboardStats,
       weightData: (weights ?? []).map((w: any) => ({ date: w.date, value: w.weight })),
       calorieData: (calories ?? []).map((c: any) => ({ date: c.date, value: c.calories })),
       stepData: (steps ?? []).map((s: any) => ({ date: s.date, value: s.steps })),
@@ -82,7 +87,87 @@ export default function DashboardPage() {
     )
   }
 
-  const { stats, weightData, calorieData, stepData } = data
+  const { stats, quickLog, dashboardStats, weightData, calorieData, stepData } = data
+
+  const statCards: Record<string, React.ReactNode> = {
+    calories: (
+      <StatCard
+        key="calories"
+        label="Calories"
+        value={stats.caloriesToday?.toLocaleString() ?? null}
+        unit="kcal"
+        icon={<Flame className="w-4 h-4 text-orange-400" />}
+        iconBg="bg-orange-400/10"
+        subtext={stats.caloriesToday ? `of ${stats.calorieTarget.toLocaleString()}` : 'Not logged'}
+      />
+    ),
+    steps: (
+      <StatCard
+        key="steps"
+        label="Steps"
+        value={stats.stepsToday?.toLocaleString() ?? null}
+        icon={<Footprints className="w-4 h-4 text-blue-400" />}
+        iconBg="bg-blue-400/10"
+        subtext={stats.stepsToday ? `of ${stats.stepTarget.toLocaleString()}` : 'Not logged'}
+      />
+    ),
+    water: (
+      <StatCard
+        key="water"
+        label="Water"
+        value={stats.waterToday}
+        unit="L"
+        icon={<Droplets className="w-4 h-4 text-cyan-400" />}
+        iconBg="bg-cyan-400/10"
+        subtext={stats.waterToday ? `of ${stats.waterTarget}L` : 'Not logged'}
+      />
+    ),
+    weight: (
+      <StatCard
+        key="weight"
+        label="Weight"
+        value={stats.currentWeight}
+        unit="kg"
+        icon={<Scale className="w-4 h-4 text-primary" />}
+        iconBg="bg-primary/10"
+      />
+    ),
+    workouts: (
+      <StatCard
+        key="workouts"
+        label="Workouts"
+        value={stats.workoutsThisWeek}
+        icon={<Dumbbell className="w-4 h-4 text-violet-400" />}
+        iconBg="bg-violet-400/10"
+      />
+    ),
+    sleep: (
+      <StatCard
+        key="sleep"
+        label="Avg Sleep"
+        value={stats.avgSleepThisWeek}
+        unit="hrs"
+        icon={<Moon className="w-4 h-4 text-indigo-400" />}
+        iconBg="bg-indigo-400/10"
+      />
+    ),
+  }
+
+  const progressBars: Record<string, React.ReactNode> = {
+    calories: stats.caloriesToday !== null ? (
+      <ProgressBar key="cal" value={stats.caloriesToday} max={stats.calorieTarget} label="Calories" showPercentage />
+    ) : null,
+    steps: stats.stepsToday !== null ? (
+      <ProgressBar key="steps" value={stats.stepsToday} max={stats.stepTarget} label="Steps" showPercentage color="hsl(217, 72%, 55%)" />
+    ) : null,
+    water: stats.waterToday !== null ? (
+      <ProgressBar key="water" value={stats.waterToday} max={stats.waterTarget} label="Water" showPercentage color="hsl(187, 72%, 55%)" />
+    ) : null,
+  }
+
+  const visibleProgressBars = dashboardStats
+    .map(id => progressBars[id])
+    .filter(Boolean)
 
   return (
     <div className="space-y-5 px-4 pb-6 animate-fade-in">
@@ -91,75 +176,18 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold mt-0.5">Dashboard</h1>
       </div>
 
-      <DashboardClient stats={stats} onSave={fetchData} />
+      <DashboardClient stats={stats} onSave={fetchData} quickLog={quickLog} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Today</h2>
         <div className="grid grid-cols-2 gap-3">
-          <StatCard
-            label="Calories"
-            value={stats.caloriesToday?.toLocaleString() ?? null}
-            unit="kcal"
-            icon={<Flame className="w-4 h-4 text-orange-400" />}
-            iconBg="bg-orange-400/10"
-            subtext={stats.caloriesToday ? `of ${stats.calorieTarget.toLocaleString()}` : 'Not logged'}
-          />
-          <StatCard
-            label="Steps"
-            value={stats.stepsToday?.toLocaleString() ?? null}
-            icon={<Footprints className="w-4 h-4 text-blue-400" />}
-            iconBg="bg-blue-400/10"
-            subtext={stats.stepsToday ? `of ${stats.stepTarget.toLocaleString()}` : 'Not logged'}
-          />
-          <StatCard
-            label="Water"
-            value={stats.waterToday}
-            unit="L"
-            icon={<Droplets className="w-4 h-4 text-cyan-400" />}
-            iconBg="bg-cyan-400/10"
-            subtext={stats.waterToday ? `of ${stats.waterTarget}L` : 'Not logged'}
-          />
-          <StatCard
-            label="Weight"
-            value={stats.currentWeight}
-            unit="kg"
-            icon={<Scale className="w-4 h-4 text-primary" />}
-            iconBg="bg-primary/10"
-          />
+          {dashboardStats.map(id => statCards[id]).filter(Boolean)}
         </div>
-
-        {(stats.caloriesToday || stats.stepsToday || stats.waterToday) && (
+        {visibleProgressBars.length > 0 && (
           <div className="stat-card space-y-3">
-            {stats.caloriesToday !== null && (
-              <ProgressBar value={stats.caloriesToday} max={stats.calorieTarget} label="Calories" showPercentage />
-            )}
-            {stats.stepsToday !== null && (
-              <ProgressBar value={stats.stepsToday} max={stats.stepTarget} label="Steps" showPercentage color="hsl(217, 72%, 55%)" />
-            )}
-            {stats.waterToday !== null && (
-              <ProgressBar value={stats.waterToday} max={stats.waterTarget} label="Water" showPercentage color="hsl(187, 72%, 55%)" />
-            )}
+            {visibleProgressBars}
           </div>
         )}
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">This Week</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard
-            label="Workouts"
-            value={stats.workoutsThisWeek}
-            icon={<Dumbbell className="w-4 h-4 text-violet-400" />}
-            iconBg="bg-violet-400/10"
-          />
-          <StatCard
-            label="Avg Sleep"
-            value={stats.avgSleepThisWeek}
-            unit="hrs"
-            icon={<Moon className="w-4 h-4 text-indigo-400" />}
-            iconBg="bg-indigo-400/10"
-          />
-        </div>
       </section>
 
       <section className="space-y-3">
