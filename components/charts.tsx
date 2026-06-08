@@ -13,6 +13,7 @@ interface ChartProps {
   unit?: string
   height?: number
   showGrid?: boolean
+  autoScale?: boolean
 }
 
 const CustomTooltip = ({ active, payload, label, unit }: any) => {
@@ -32,7 +33,7 @@ const CustomTooltip = ({ active, payload, label, unit }: any) => {
 }
 
 export function TrendChart({
-  data, color = 'hsl(142, 72%, 55%)', type = 'area', unit, height = 160, showGrid = false,
+  data, color = 'hsl(142, 72%, 55%)', type = 'area', unit, height = 160, showGrid = false, autoScale = true,
 }: ChartProps) {
   if (!data || data.length === 0) {
     return (
@@ -46,6 +47,15 @@ export function TrendChart({
     try { return format(parseISO(dateStr), 'MMM d') } catch { return dateStr }
   }
 
+  // Auto-scale: pad the min/max by 5% for area/line charts
+  const values = data.map(d => d.value)
+  const dataMin = Math.min(...values)
+  const dataMax = Math.max(...values)
+  const padding = (dataMax - dataMin) * 0.3 || dataMax * 0.1
+  const yDomain = autoScale && type !== 'bar'
+    ? [Math.max(0, dataMin - padding), dataMax + padding]
+    : ['auto', 'auto']
+
   const gradientId = `gradient-${Math.random().toString(36).substr(2, 9)}`
   const commonProps = { data, margin: { top: 4, right: 4, left: -20, bottom: 0 } }
 
@@ -55,7 +65,7 @@ export function TrendChart({
         <BarChart {...commonProps}>
           {showGrid && <CartesianGrid strokeDasharray="3 3" />}
           <XAxis dataKey="date" tickFormatter={formatXAxis} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
           <Tooltip content={<CustomTooltip unit={unit} />} />
           <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} />
         </BarChart>
@@ -69,7 +79,7 @@ export function TrendChart({
         <LineChart {...commonProps}>
           {showGrid && <CartesianGrid strokeDasharray="3 3" />}
           <XAxis dataKey="date" tickFormatter={formatXAxis} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} domain={yDomain as any} />
           <Tooltip content={<CustomTooltip unit={unit} />} />
           <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
         </LineChart>
@@ -88,7 +98,7 @@ export function TrendChart({
         </defs>
         {showGrid && <CartesianGrid strokeDasharray="3 3" />}
         <XAxis dataKey="date" tickFormatter={formatXAxis} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-        <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+        <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} domain={yDomain as any} />
         <Tooltip content={<CustomTooltip unit={unit} />} />
         <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} dot={false} activeDot={{ r: 4 }} />
       </AreaChart>
