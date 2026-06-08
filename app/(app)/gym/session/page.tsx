@@ -43,7 +43,6 @@ export default function SessionPage() {
   const restIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const supabase = createClient()
 
-  // Elapsed timer
   useEffect(() => {
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTime.getTime()) / 1000))
@@ -57,7 +56,6 @@ export default function SessionPage() {
     return `${m}:${sec.toString().padStart(2, '0')}`
   }
 
-  // Rest timer
   useEffect(() => {
     if (restActive && restTimer !== null && restTimer > 0) {
       restIntervalRef.current = setInterval(() => {
@@ -82,14 +80,12 @@ export default function SessionPage() {
     setRestActive(true)
   }
 
-  // Load exercise library
   useEffect(() => {
     supabase.from('exercises').select('*').order('name').then(({ data }) => {
       setAllExercises(data ?? [])
     })
   }, [])
 
-  // Initialize session
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -165,7 +161,6 @@ export default function SessionPage() {
         const mostRecentDate = (data[0].workout_sessions as any).started_at
         const lastSessionSets = data.filter(s => (s.workout_sessions as any).started_at === mostRecentDate)
         prev[name] = lastSessionSets
-
         const maxWeight = Math.max(...data.map(s => s.weight_kg ?? 0))
         prMap[name] = maxWeight
       }
@@ -338,22 +333,15 @@ export default function SessionPage() {
             <p className="text-xs text-muted-foreground">{formatElapsed(elapsed)}</p>
           </div>
           <div className="flex gap-2 flex-shrink-0">
-            <button
-              onClick={discardWorkout}
-              className="px-3 py-1.5 rounded-xl bg-secondary text-xs font-medium press-effect"
-            >
+            <button onClick={discardWorkout} className="px-3 py-1.5 rounded-xl bg-secondary text-xs font-medium press-effect">
               Discard
             </button>
-            <button
-              onClick={finishWorkout}
-              className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold press-effect"
-            >
+            <button onClick={finishWorkout} className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold press-effect">
               Finish
             </button>
           </div>
         </div>
 
-        {/* Rest timer */}
         {restActive && restTimer !== null && (
           <div className="mt-2 flex items-center gap-3 bg-primary/10 border border-primary/20 rounded-xl px-3 py-2">
             <Timer className="w-4 h-4 text-primary flex-shrink-0" />
@@ -367,10 +355,7 @@ export default function SessionPage() {
               </div>
             </div>
             <span className="text-lg font-bold text-primary tabular-nums">{restTimer}s</span>
-            <button
-              onClick={() => { setRestActive(false); setRestTimer(null) }}
-              className="text-muted-foreground hover:text-foreground"
-            >
+            <button onClick={() => { setRestActive(false); setRestTimer(null) }} className="text-muted-foreground">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -382,7 +367,7 @@ export default function SessionPage() {
         {exercises.length === 0 && (
           <div className="stat-card text-center py-8">
             <p className="text-sm text-muted-foreground">No exercises added yet.</p>
-            <p className="text-xs text-muted-foreground mt-1">Tap "Add Exercise" below to get started.</p>
+            <p className="text-xs text-muted-foreground mt-1">Tap "Add Exercise" below.</p>
           </div>
         )}
 
@@ -392,38 +377,24 @@ export default function SessionPage() {
 
           return (
             <div key={`${ex.name}-${exIdx}`} className="stat-card space-y-3">
-              {/* Exercise header */}
               <div className="flex items-center justify-between">
                 <p className="font-semibold text-primary flex-1 min-w-0 truncate mr-2">{ex.name}</p>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    onClick={() => moveExercise(ex.name, 'up')}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary press-effect"
-                  >
+                  <button onClick={() => moveExercise(ex.name, 'up')} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary press-effect">
                     <ChevronUp className="w-4 h-4 text-muted-foreground" />
                   </button>
-                  <button
-                    onClick={() => moveExercise(ex.name, 'down')}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary press-effect"
-                  >
+                  <button onClick={() => moveExercise(ex.name, 'down')} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary press-effect">
                     <ChevronDown className="w-4 h-4 text-muted-foreground" />
                   </button>
-                  <button
-                    onClick={() => { setSwappingExercise(ex.name); setShowExercisePicker(true) }}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary press-effect"
-                  >
+                  <button onClick={() => { setSwappingExercise(ex.name); setShowExercisePicker(true) }} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-secondary press-effect">
                     <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
                   </button>
-                  <button
-                    onClick={() => removeExercise(ex.name)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-destructive/10 press-effect"
-                  >
+                  <button onClick={() => removeExercise(ex.name)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-destructive/10 press-effect">
                     <X className="w-4 h-4 text-muted-foreground" />
                   </button>
                 </div>
               </div>
 
-              {/* Previous + PR */}
               {(prevSets.length > 0 || pr > 0) && (
                 <div className="flex flex-wrap gap-1.5 items-center">
                   {pr > 0 && (
@@ -442,7 +413,6 @@ export default function SessionPage() {
                 </div>
               )}
 
-              {/* Set headers */}
               <div className="grid grid-cols-12 gap-1 text-[10px] text-muted-foreground px-1">
                 <div className="col-span-1">SET</div>
                 <div className="col-span-4 text-center">KG</div>
@@ -451,20 +421,13 @@ export default function SessionPage() {
                 <div className="col-span-1"></div>
               </div>
 
-              {/* Sets */}
               {ex.sets.map((set, setIdx) => {
                 const isPR = set.completed && set.weight_kg && parseFloat(set.weight_kg) > pr && pr > 0
                 return (
-                  <div
-                    key={setIdx}
-                    className={`grid grid-cols-12 gap-1 items-center px-1 py-1 rounded-lg transition-all ${
-                      isPR
-                        ? 'bg-yellow-400/10 border border-yellow-400/20'
-                        : set.completed
-                        ? 'bg-primary/5 border border-primary/10'
-                        : ''
-                    }`}
-                  >
+                  <div key={setIdx} className={`grid grid-cols-12 gap-1 items-center px-1 py-1 rounded-lg transition-all ${
+                    isPR ? 'bg-yellow-400/10 border border-yellow-400/20' :
+                    set.completed ? 'bg-primary/5 border border-primary/10' : ''
+                  }`}>
                     <div className="col-span-1 text-xs font-medium text-muted-foreground">{setIdx + 1}</div>
                     <input
                       value={set.weight_kg}
@@ -500,11 +463,9 @@ export default function SessionPage() {
                     <button
                       onClick={() => !set.completed && completeSet(ex.name, setIdx)}
                       className={`col-span-1 flex items-center justify-center w-7 h-7 rounded-lg press-effect transition-all ${
-                        isPR
-                          ? 'bg-yellow-400/20 text-yellow-400'
-                          : set.completed
-                          ? 'bg-primary/20 text-primary'
-                          : 'bg-secondary text-muted-foreground hover:bg-primary/20 hover:text-primary'
+                        isPR ? 'bg-yellow-400/20 text-yellow-400' :
+                        set.completed ? 'bg-primary/20 text-primary' :
+                        'bg-secondary text-muted-foreground hover:bg-primary/20 hover:text-primary'
                       }`}
                     >
                       <Check className="w-4 h-4" />
@@ -513,7 +474,6 @@ export default function SessionPage() {
                 )
               })}
 
-              {/* Add set */}
               <button
                 onClick={() => addSet(ex.name)}
                 className="w-full py-2 rounded-lg border border-dashed border-border text-xs text-muted-foreground flex items-center justify-center gap-1 press-effect hover:border-primary/50 transition-all"
@@ -524,7 +484,6 @@ export default function SessionPage() {
           )
         })}
 
-        {/* Add exercise button */}
         <button
           onClick={() => { setSwappingExercise(null); setShowExercisePicker(true) }}
           className="w-full py-3 rounded-xl border border-dashed border-border text-sm text-muted-foreground flex items-center justify-center gap-2 press-effect hover:border-primary/50 transition-all"
@@ -533,7 +492,7 @@ export default function SessionPage() {
         </button>
       </div>
 
-      {/* Exercise picker */}
+      {/* Exercise picker — fixed height, search pinned at top */}
       {showExercisePicker && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">
           <div
@@ -542,24 +501,27 @@ export default function SessionPage() {
           />
           <div
             className="relative z-10 w-full max-w-lg bg-card border border-border rounded-t-2xl shadow-2xl flex flex-col"
-            style={{ maxHeight: '85vh' }}
+            style={{ height: '80vh' }}
           >
-            {/* Picker header */}
-            <div className="px-5 py-4 border-b border-border flex-shrink-0">
-              <h2 className="font-semibold text-base">
+            {/* Pinned header */}
+            <div className="flex-shrink-0 px-5 pt-3 pb-3 border-b border-border">
+              <div className="flex justify-center mb-2">
+                <div className="w-10 h-1 rounded-full bg-border" />
+              </div>
+              <h2 className="font-semibold text-base mb-3">
                 {swappingExercise ? `Swap: ${swappingExercise}` : 'Add Exercise'}
               </h2>
-              <div className="relative mt-3">
+              <div className="relative">
                 <input
                   value={exerciseSearch}
                   onChange={e => setExerciseSearch(e.target.value)}
                   placeholder="Search exercises..."
-                  className="w-full px-3 py-2 rounded-xl bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className="w-full px-3 py-2.5 rounded-xl bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 pr-8"
                 />
                 {exerciseSearch && (
                   <button
                     onClick={() => setExerciseSearch('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-lg leading-none"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xl leading-none"
                   >
                     ×
                   </button>
@@ -567,8 +529,8 @@ export default function SessionPage() {
               </div>
             </div>
 
-            {/* Picker content */}
-            <div className="overflow-y-auto flex-1">
+            {/* Scrollable list — never moves regardless of keyboard */}
+            <div className="flex-1 overflow-y-auto min-h-0">
               {!exerciseSearch ? (
                 <>
                   <SuggestedExercises
@@ -598,7 +560,7 @@ export default function SessionPage() {
                         <Plus className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                       </button>
                     ))}
-                  {exerciseSearch && !allExercises.find(e => e.name.toLowerCase() === exerciseSearch.toLowerCase()) && (
+                  {!allExercises.find(e => e.name.toLowerCase() === exerciseSearch.toLowerCase()) && exerciseSearch && (
                     <button
                       onClick={() => swappingExercise ? swapExercise(swappingExercise, exerciseSearch) : addExercise(exerciseSearch)}
                       className="w-full flex items-center gap-3 px-5 py-3 hover:bg-secondary transition-colors press-effect"
@@ -718,7 +680,7 @@ function ExerciseListByGroup({
     <>
       {sortedGroups.map(group => (
         <div key={group}>
-          <div className="px-5 py-2 bg-secondary/50 sticky top-0">
+          <div className="px-5 py-2 bg-secondary/50 sticky top-0 z-10">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group}</p>
           </div>
           {groups[group].map((ex: any) => (
