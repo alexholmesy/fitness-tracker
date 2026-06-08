@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { PageHeader } from '@/components/ui-kit'
 import { TrendChart } from '@/components/charts'
-import { CaloriesClient } from './calories-client'
+import { CaloriesClient, CaloriesHistoryList } from './calories-client'
 
 export default function CaloriesPage() {
   const [entries, setEntries] = useState<any[]>([])
   const [profile, setProfile] = useState<any>(null)
   const [range, setRange] = useState('30d')
   const [loading, setLoading] = useState(true)
+  const [editingEntry, setEditingEntry] = useState<any>(null)
   const supabase = createClient()
 
   const fetchData = async () => {
@@ -37,7 +38,17 @@ export default function CaloriesPage() {
 
   return (
     <div className="space-y-4 animate-fade-in">
-      <PageHeader title="Calories" subtitle="Daily intake tracking" action={<CaloriesClient onSave={fetchData} />} />
+      <PageHeader
+        title="Calories"
+        subtitle="Daily intake tracking"
+        action={
+          <CaloriesClient
+            onSave={fetchData}
+            editingEntry={editingEntry}
+            onEditClose={() => setEditingEntry(null)}
+          />
+        }
+      />
       <div className="px-4">
         <div className="flex items-center gap-1 bg-secondary rounded-xl p-1">
           {['7d', '30d', '90d', '1y', 'all'].map(r => (
@@ -68,24 +79,13 @@ export default function CaloriesPage() {
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">History</h2>
         {loading ? (
           <div className="stat-card text-center py-8"><p className="text-sm text-muted-foreground">Loading...</p></div>
-        ) : entries.length === 0 ? (
-          <div className="stat-card text-center py-8"><p className="text-sm text-muted-foreground">No entries yet.</p></div>
         ) : (
-          <div className="space-y-2">
-            {[...entries].reverse().map(entry => (
-              <div key={entry.id} className="stat-card flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold">{entry.calories.toLocaleString()} kcal</p>
-                  <p className="text-xs text-muted-foreground">{entry.date}</p>
-                </div>
-                {profile?.daily_calorie_target && (
-                  <div className={`text-xs font-medium px-2 py-1 rounded-lg ${entry.calories <= profile.daily_calorie_target ? 'bg-primary/10 text-primary' : 'bg-red-400/10 text-red-400'}`}>
-                    {entry.calories <= profile.daily_calorie_target ? 'On target' : 'Over'}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          <CaloriesHistoryList
+            entries={entries}
+            onDelete={fetchData}
+            onEdit={(entry) => setEditingEntry(entry)}
+            calorieTarget={profile?.daily_calorie_target ?? 2000}
+          />
         )}
       </div>
     </div>
