@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { WorkoutProvider } from '@/lib/workout-context'
 
 export const metadata: Metadata = {
   title: 'FitTrack',
@@ -21,15 +22,13 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className="antialiased min-h-screen bg-background text-foreground">
-        {children}
+        <WorkoutProvider>
+          {children}
+        </WorkoutProvider>
       </body>
     </html>
   )
