@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { DashboardClient } from './dashboard-client'
 import { StatCard, ProgressBar } from '@/components/stat-card'
 import { TrendChart } from '@/components/charts'
-import { Scale, Flame, Footprints, Dumbbell, Moon, Droplets } from 'lucide-react'
+import { Scale, Flame, Footprints, Dumbbell, Moon, Droplets, Beef } from 'lucide-react'
 import { format } from 'date-fns'
 
 export default function DashboardPage() {
@@ -36,7 +36,6 @@ export default function DashboardPage() {
     ] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
       supabase.from('weight_entries').select('weight').eq('user_id', user.id).order('date', { ascending: false }).limit(1).single(),
-      supabase.from('calorie_entries').select('calories').eq('user_id', user.id).eq('date', todayStr).single(),
       supabase.from('calorie_entries').select('calories, protein_g').eq('user_id', user.id).eq('date', todayStr).single(),
       supabase.from('step_entries').select('steps').eq('user_id', user.id).eq('date', todayStr).single(),
       supabase.from('water_entries').select('litres').eq('user_id', user.id).eq('date', todayStr).single(),
@@ -58,11 +57,13 @@ export default function DashboardPage() {
       stats: {
         currentWeight: latestWeight?.weight ?? null,
         caloriesToday: todayCalories?.calories ?? null,
+        proteinToday: todayCalories?.protein_g ?? null,
         stepsToday: todaySteps?.steps ?? null,
         waterToday: todayWater?.litres ?? null,
         workoutsThisWeek: weekWorkouts?.length ?? 0,
         avgSleepThisWeek: avgSleep,
         calorieTarget: profile?.daily_calorie_target ?? 2000,
+        proteinTarget: profile?.daily_protein_target ?? 190,
         stepTarget: profile?.daily_step_target ?? 10000,
         waterTarget: profile?.water_target ?? 2.5,
         weightChangeWeek: null,
@@ -167,9 +168,8 @@ export default function DashboardPage() {
   }
 
   const visibleProgressBars = dashboardStats
-  .map((id: string) => progressBars[id])
-  .filter(Boolean)
-
+    .map((id: string) => progressBars[id])
+    .filter(Boolean)
 
   return (
     <div className="space-y-5 px-4 pb-6 animate-fade-in">
@@ -185,11 +185,53 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-3">
           {dashboardStats.map((id: string) => statCards[id]).filter(Boolean)}
         </div>
-        {visibleProgressBars.length > 0 && (
+
+        {/* Protein card — always shown if logged */}
+        {stats.proteinToday !== null && (
+          <StatCard
+            label="Protein"
+            value={stats.proteinToday}
+            unit="g"
+            icon={<Beef className="w-4 h-4 text-rose-400" />}
+            iconBg="bg-rose-400/10"
+            subtext={`of ${stats.proteinTarget}g target`}
+            subtextColor={stats.proteinToday >= stats.proteinTarget ? 'green' : 'neutral'}
+          />
+        )}
+
+        {(visibleProgressBars.length > 0 || stats.proteinToday !== null) && (
           <div className="stat-card space-y-3">
             {visibleProgressBars}
+            {stats.proteinToday !== null && (
+              <ProgressBar
+                value={stats.proteinToday}
+                max={stats.proteinTarget}
+                label="Protein"
+                showPercentage
+                color="hsl(345, 72%, 55%)"
+              />
+            )}
           </div>
         )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">This Week</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard
+            label="Workouts"
+            value={stats.workoutsThisWeek}
+            icon={<Dumbbell className="w-4 h-4 text-violet-400" />}
+            iconBg="bg-violet-400/10"
+          />
+          <StatCard
+            label="Avg Sleep"
+            value={stats.avgSleepThisWeek}
+            unit="hrs"
+            icon={<Moon className="w-4 h-4 text-indigo-400" />}
+            iconBg="bg-indigo-400/10"
+          />
+        </div>
       </section>
 
       <section className="space-y-3">
