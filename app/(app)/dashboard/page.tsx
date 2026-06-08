@@ -37,6 +37,7 @@ export default function DashboardPage() {
       supabase.from('profiles').select('*').eq('id', user.id).single(),
       supabase.from('weight_entries').select('weight').eq('user_id', user.id).order('date', { ascending: false }).limit(1).single(),
       supabase.from('calorie_entries').select('calories').eq('user_id', user.id).eq('date', todayStr).single(),
+      supabase.from('calorie_entries').select('calories, protein_g').eq('user_id', user.id).eq('date', todayStr).single(),
       supabase.from('step_entries').select('steps').eq('user_id', user.id).eq('date', todayStr).single(),
       supabase.from('water_entries').select('litres').eq('user_id', user.id).eq('date', todayStr).single(),
       supabase.from('workouts').select('id').eq('user_id', user.id).gte('date', weekStart),
