@@ -128,47 +128,62 @@ export default function GymPage() {
 
           {/* History tab */}
           {tab === 'history' && (
-            <div className="px-4 space-y-3">
-              {sessions.length === 0 ? (
-                <div className="stat-card text-center py-8">
-                  <p className="text-sm text-muted-foreground">No sessions yet. Start a workout!</p>
-                </div>
-              ) : sessions.map(session => {
-                const exercises = [...new Set((session.workout_sets ?? []).map((s: any) => s.exercise_name))]
-                const volume = (session.workout_sets ?? []).reduce((sum: number, s: any) =>
-                  sum + (s.weight_kg ?? 0) * (s.reps ?? 0), 0)
-                const duration = session.finished_at
-                  ? Math.round((new Date(session.finished_at).getTime() - new Date(session.started_at).getTime()) / 60000)
-                  : null
+  <div className="px-4 space-y-3">
+    {sessions.length === 0 ? (
+      <div className="stat-card text-center py-8">
+        <p className="text-sm text-muted-foreground">No sessions yet. Start a workout!</p>
+      </div>
+    ) : sessions.map(session => {
+      const exercises = [...new Set((session.workout_sets ?? []).map((s: any) => s.exercise_name))]
+      const volume = (session.workout_sets ?? []).reduce((sum: number, s: any) =>
+        sum + (s.weight_kg ?? 0) * (s.reps ?? 0), 0)
+      const duration = session.finished_at
+        ? Math.round((new Date(session.finished_at).getTime() - new Date(session.started_at).getTime()) / 60000)
+        : null
 
-                return (
-                  <a key={session.id} href={`/gym/session/${session.id}`} className="stat-card block">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold">{session.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(session.started_at), 'EEE, MMM d')}
-                          {duration && ` · ${duration} min`}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground">{exercises.length} exercises</p>
-                        {volume > 0 && <p className="text-xs text-primary font-medium">{(volume / 1000).toFixed(1)}t vol</p>}
-                      </div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {exercises.slice(0, 4).map((ex: any) => (
-                        <span key={ex} className="text-[10px] bg-secondary px-2 py-0.5 rounded-full text-muted-foreground">{ex}</span>
-                      ))}
-                      {exercises.length > 4 && (
-                        <span className="text-[10px] bg-secondary px-2 py-0.5 rounded-full text-muted-foreground">+{exercises.length - 4}</span>
-                      )}
-                    </div>
-                  </a>
-                )
-              })}
-            </div>
-          )}
+      return (
+        <div key={session.id} className="stat-card">
+          <div className="flex items-start justify-between">
+            <a href={`/gym/session/${session.id}`} className="flex-1 min-w-0">
+              <p className="font-semibold">{session.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {format(new Date(session.started_at), 'EEE, MMM d')}
+                {duration && ` · ${duration} min`}
+              </p>
+              <div className="mt-1">
+                <p className="text-xs text-muted-foreground">
+                  {exercises.length} exercises · {volume.toLocaleString()} kg vol
+                </p>
+              </div>
+            </a>
+            <button
+              onClick={async () => {
+                await supabase.from('workout_sessions').delete().eq('id', session.id)
+                fetchData()
+              }}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-destructive/10 press-effect flex-shrink-0 ml-2"
+            >
+              <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+            </button>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1">
+            {(exercises as string[]).slice(0, 4).map((ex: string) => (
+              <span key={ex} className="text-[10px] bg-secondary px-2 py-0.5 rounded-full text-muted-foreground">
+                {ex}
+              </span>
+            ))}
+            {exercises.length > 4 && (
+              <span className="text-[10px] bg-secondary px-2 py-0.5 rounded-full text-muted-foreground">
+                +{exercises.length - 4}
+              </span>
+            )}
+          </div>
+        </div>
+      )
+    })}
+  </div>
+)}
+
 
           {/* PRs tab */}
           {tab === 'prs' && <PRsTab />}
