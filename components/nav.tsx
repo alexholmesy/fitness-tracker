@@ -10,7 +10,7 @@ import {
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Home' },
-  { href: '/workouts', icon: Dumbbell, label: 'Workout' },
+  { href: '/gym', icon: Dumbbell, label: 'Gym' },
   { href: '/weight', icon: Scale, label: 'Weight' },
   { href: '/calories', icon: Flame, label: 'Calories' },
   { href: '/analytics', icon: BarChart3, label: 'Analytics' },
@@ -18,6 +18,7 @@ const navItems = [
 
 const allNavItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/gym', icon: Dumbbell, label: 'Gym' },
   { href: '/weight', icon: Scale, label: 'Weight' },
   { href: '/calories', icon: Flame, label: 'Calories' },
   { href: '/steps', icon: Footprints, label: 'Steps' },
