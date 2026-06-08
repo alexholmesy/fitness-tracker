@@ -1,18 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Scale, Flame, Footprints, Droplets, Beef } from 'lucide-react'
+import { Scale, Flame, Footprints, Droplets } from 'lucide-react'
 import { Modal, Input, SubmitButton } from '@/components/ui-kit'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import type { DashboardStats } from '@/types'
 
-type QuickLogType = 'weight' | 'calories' | 'steps' | 'water' | 'protein' | null
+type QuickLogType = 'weight' | 'calories' | 'steps' | 'water' | null
 
 const ALL_QUICK_ACTIONS = [
   { type: 'weight' as const, icon: Scale, label: 'Weight', color: 'text-primary', bg: 'bg-primary/10' },
   { type: 'calories' as const, icon: Flame, label: 'Calories', color: 'text-orange-400', bg: 'bg-orange-400/10' },
-  { type: 'protein' as const, icon: Beef, label: 'Protein', color: 'text-rose-400', bg: 'bg-rose-400/10' },
   { type: 'steps' as const, icon: Footprints, label: 'Steps', color: 'text-blue-400', bg: 'bg-blue-400/10' },
   { type: 'water' as const, icon: Droplets, label: 'Water', color: 'text-cyan-400', bg: 'bg-cyan-400/10' },
 ]
@@ -35,7 +34,6 @@ export function DashboardClient({ stats, onSave, quickLog }: {
     setLoading(true)
     setError(null)
     const formData = new FormData(e.currentTarget)
-    const value = formData.get('value') as string
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -43,39 +41,24 @@ export function DashboardClient({ stats, onSave, quickLog }: {
 
       if (activeLog === 'weight') {
         await supabase.from('weight_entries').upsert(
-          { user_id: user.id, date: today, weight: parseFloat(value) },
+          { user_id: user.id, date: today, weight: parseFloat(formData.get('value') as string) },
           { onConflict: 'user_id,date' }
         )
       } else if (activeLog === 'calories') {
+        const calories = parseInt(formData.get('calories') as string)
+        const protein = formData.get('protein_g') ? parseInt(formData.get('protein_g') as string) : null
         await supabase.from('calorie_entries').upsert(
-          { user_id: user.id, date: today, calories: parseInt(value) },
-          { onConflict: 'user_id,date' }
-        )
-      } else if (activeLog === 'protein') {
-        // Upsert the calorie entry with protein, preserving existing calories
-        const { data: existing } = await supabase
-          .from('calorie_entries')
-          .select('calories')
-          .eq('user_id', user.id)
-          .eq('date', today)
-          .single()
-        await supabase.from('calorie_entries').upsert(
-          {
-            user_id: user.id,
-            date: today,
-            calories: existing?.calories ?? 0,
-            protein_g: parseInt(value)
-          },
+          { user_id: user.id, date: today, calories, protein_g: protein },
           { onConflict: 'user_id,date' }
         )
       } else if (activeLog === 'steps') {
         await supabase.from('step_entries').upsert(
-          { user_id: user.id, date: today, steps: parseInt(value) },
+          { user_id: user.id, date: today, steps: parseInt(formData.get('value') as string) },
           { onConflict: 'user_id,date' }
         )
       } else if (activeLog === 'water') {
         await supabase.from('water_entries').upsert(
-          { user_id: user.id, date: today, litres: parseFloat(value) },
+          { user_id: user.id, date: today, litres: parseFloat(formData.get('value') as string) },
           { onConflict: 'user_id,date' }
         )
       }
@@ -88,16 +71,6 @@ export function DashboardClient({ stats, onSave, quickLog }: {
       setLoading(false)
     }
   }
-
-  const configs: Record<string, { title: string; label: string; type: string; step?: string; placeholder: string }> = {
-    weight: { title: 'Log Weight', label: 'Weight (kg)', type: 'number', step: '0.1', placeholder: '85.0' },
-    calories: { title: 'Log Calories', label: 'Calories (kcal)', type: 'number', placeholder: '2200' },
-    protein: { title: 'Log Protein', label: 'Protein (g)', type: 'number', placeholder: '190' },
-    steps: { title: 'Log Steps', label: 'Steps', type: 'number', placeholder: '8000' },
-    water: { title: 'Log Water', label: 'Litres', type: 'number', step: '0.1', placeholder: '2.5' },
-  }
-
-  const config = activeLog ? configs[activeLog] : null
 
   if (visibleActions.length === 0) return null
 
@@ -121,24 +94,39 @@ export function DashboardClient({ stats, onSave, quickLog }: {
         ))}
       </div>
 
-      <Modal open={activeLog !== null} onClose={() => setActiveLog(null)} title={config?.title ?? ''}>
+      {/* Weight modal */}
+      <Modal open={activeLog === 'weight'} onClose={() => setActiveLog(null)} title="Log Weight">
         <form onSubmit={handleQuickLog} className="space-y-4">
-          {error && (
-            <div className="px-3 py-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-              {error}
-            </div>
-          )}
-          {config && (
-            <Input
-              label={config.label}
-              name="value"
-              type={config.type}
-              step={config.step}
-              placeholder={config.placeholder}
-              required
-              autoFocus
-            />
-          )}
+          {error && <div className="px-3 py-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">{error}</div>}
+          <Input label="Weight (kg)" name="value" type="number" step="0.1" placeholder="85.0" required autoFocus />
+          <SubmitButton loading={loading} />
+        </form>
+      </Modal>
+
+      {/* Calories + Protein modal */}
+      <Modal open={activeLog === 'calories'} onClose={() => setActiveLog(null)} title="Log Calories & Protein">
+        <form onSubmit={handleQuickLog} className="space-y-4">
+          {error && <div className="px-3 py-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">{error}</div>}
+          <Input label="Calories (kcal)" name="calories" type="number" placeholder="2200" required autoFocus />
+          <Input label="Protein (g)" name="protein_g" type="number" placeholder="190" />
+          <SubmitButton loading={loading} />
+        </form>
+      </Modal>
+
+      {/* Steps modal */}
+      <Modal open={activeLog === 'steps'} onClose={() => setActiveLog(null)} title="Log Steps">
+        <form onSubmit={handleQuickLog} className="space-y-4">
+          {error && <div className="px-3 py-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">{error}</div>}
+          <Input label="Steps" name="value" type="number" placeholder="8000" required autoFocus />
+          <SubmitButton loading={loading} />
+        </form>
+      </Modal>
+
+      {/* Water modal */}
+      <Modal open={activeLog === 'water'} onClose={() => setActiveLog(null)} title="Log Water">
+        <form onSubmit={handleQuickLog} className="space-y-4">
+          {error && <div className="px-3 py-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">{error}</div>}
+          <Input label="Litres" name="value" type="number" step="0.1" placeholder="2.5" required autoFocus />
           <SubmitButton loading={loading} />
         </form>
       </Modal>
