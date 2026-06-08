@@ -76,6 +76,7 @@ export default function SettingsPage() {
         full_name: fd.get('full_name') as string || null,
         goal_weight: fd.get('goal_weight') ? parseFloat(fd.get('goal_weight') as string) : null,
         daily_calorie_target: parseInt(fd.get('daily_calorie_target') as string),
+        daily_protein_target: parseInt(fd.get('daily_protein_target') as string),
         daily_step_target: parseInt(fd.get('daily_step_target') as string),
         water_target: parseFloat(fd.get('water_target') as string),
         sleep_target: parseFloat(fd.get('sleep_target') as string),
