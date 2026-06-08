@@ -34,6 +34,7 @@ export function CaloriesClient({ onSave, editingEntry, onEditClose }: {
         const { error } = await supabase.from('calorie_entries').update({
           date: fd.get('date') as string,
           calories: parseInt(fd.get('calories') as string),
+          protein_g: fd.get('protein_g') ? parseInt(fd.get('protein_g') as string) : null,
           notes: (fd.get('notes') as string) || null,
         }).eq('id', editingEntry.id)
         if (error) throw error
@@ -42,6 +43,7 @@ export function CaloriesClient({ onSave, editingEntry, onEditClose }: {
           user_id: user.id,
           date: fd.get('date') as string,
           calories: parseInt(fd.get('calories') as string),
+          protein_g: fd.get('protein_g') ? parseInt(fd.get('protein_g') as string) : null,
           notes: (fd.get('notes') as string) || null,
         }, { onConflict: 'user_id,date' })
         if (error) throw error
@@ -91,11 +93,19 @@ export function CaloriesClient({ onSave, editingEntry, onEditClose }: {
             label="Calories (kcal)"
             name="calories"
             type="number"
-            placeholder="2000"
+            placeholder="2200"
             defaultValue={editingEntry ? editingEntry.calories : ''}
             key={`cal-${editingEntry?.id ?? 'new'}`}
             required
             autoFocus
+          />
+          <Input
+            label="Protein (g)"
+            name="protein_g"
+            type="number"
+            placeholder="190"
+            defaultValue={editingEntry ? editingEntry.protein_g ?? '' : ''}
+            key={`protein-${editingEntry?.id ?? 'new'}`}
           />
           <Input
             label="Notes (optional)"
@@ -112,11 +122,12 @@ export function CaloriesClient({ onSave, editingEntry, onEditClose }: {
   )
 }
 
-export function CaloriesHistoryList({ entries, onDelete, onEdit, calorieTarget }: {
+export function CaloriesHistoryList({ entries, onDelete, onEdit, calorieTarget, proteinTarget }: {
   entries: any[]
   onDelete: () => void
   onEdit: (entry: any) => void
   calorieTarget: number
+  proteinTarget: number
 }) {
   const supabase = createClient()
 
@@ -131,32 +142,66 @@ export function CaloriesHistoryList({ entries, onDelete, onEdit, calorieTarget }
   return (
     <div className="space-y-2">
       {[...entries].reverse().map(entry => (
-        <div key={entry.id} className="stat-card flex items-center justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold">{entry.calories.toLocaleString()} kcal</p>
-            <p className="text-xs text-muted-foreground">{entry.date}</p>
-            {entry.notes && <p className="text-xs text-muted-foreground/60 mt-0.5 truncate">{entry.notes}</p>}
+        <div key={entry.id} className="stat-card">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold">{entry.calories.toLocaleString()} kcal</p>
+                {entry.protein_g && (
+                  <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-400/10 text-blue-400">
+                    {entry.protein_g}g protein
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">{entry.date}</p>
+              {entry.notes && <p className="text-xs text-muted-foreground/60 mt-0.5 truncate">{entry.notes}</p>}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => onEdit(entry)}
+                className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all press-effect"
+              >
+                <Pencil className="w-3 h-3" />
+              </button>
+              <DeleteButton
+                onDelete={async () => {
+                  await supabase.from('calorie_entries').delete().eq('id', entry.id)
+                  onDelete()
+                }}
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {calorieTarget && (
-              <div className={`text-xs font-medium px-2 py-1 rounded-lg ${
-                entry.calories <= calorieTarget ? 'bg-primary/10 text-primary' : 'bg-red-400/10 text-red-400'
-              }`}>
-                {entry.calories <= calorieTarget ? 'On target' : 'Over'}
+          {/* Progress bars */}
+          <div className="mt-3 space-y-2">
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Calories</span>
+                <span>{Math.round((entry.calories / calorieTarget) * 100)}%</span>
+              </div>
+              <div className="progress-bar">
+                <div
+                  className="progress-fill"
+                  style={{ width: `${Math.min((entry.calories / calorieTarget) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+            {entry.protein_g && proteinTarget && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Protein</span>
+                  <span>{Math.round((entry.protein_g / proteinTarget) * 100)}%</span>
+                </div>
+                <div className="progress-bar">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min((entry.protein_g / proteinTarget) * 100, 100)}%`,
+                      background: 'linear-gradient(90deg, hsl(217 72% 45%), hsl(217 72% 65%))',
+                    }}
+                  />
+                </div>
               </div>
             )}
-            <button
-              onClick={() => onEdit(entry)}
-              className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all press-effect"
-            >
-              <Pencil className="w-3 h-3" />
-            </button>
-            <DeleteButton
-              onDelete={async () => {
-                await supabase.from('calorie_entries').delete().eq('id', entry.id)
-                onDelete()
-              }}
-            />
           </div>
         </div>
       ))}
