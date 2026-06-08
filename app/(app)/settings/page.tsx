@@ -18,11 +18,11 @@ const ALL_METRICS = [
 
 const QUICK_LOG_OPTIONS = [
   { id: 'weight', label: 'Weight' },
-  { id: 'calories', label: 'Calories' },
-  { id: 'protein', label: 'Protein' },
+  { id: 'calories', label: 'Calories (+ Protein)' },
   { id: 'steps', label: 'Steps' },
   { id: 'water', label: 'Water' },
 ]
+
 
 
 const DASHBOARD_STAT_OPTIONS = [
