@@ -22,10 +22,9 @@ const allNavItems = [
   { href: '/weight', icon: Scale, label: 'Weight' },
   { href: '/calories', icon: Flame, label: 'Calories' },
   { href: '/steps', icon: Footprints, label: 'Steps' },
-  { href: '/workouts', icon: Dumbbell, label: 'Workouts' },
-//  { href: '/cardio', icon: Heart, label: 'Cardio' },
-//  { href: '/sleep', icon: Moon, label: 'Sleep' },
-//  { href: '/water', icon: Droplets, label: 'Water' },
+  { href: '/cardio', icon: Heart, label: 'Cardio' },
+  { href: '/sleep', icon: Moon, label: 'Sleep' },
+  { href: '/water', icon: Droplets, label: 'Water' },
   { href: '/photos', icon: Camera, label: 'Photos' },
   { href: '/notes', icon: FileText, label: 'Notes' },
   { href: '/analytics', icon: BarChart3, label: 'Analytics' },
@@ -35,11 +34,13 @@ const allNavItems = [
 export function BottomNav() {
   const pathname = usePathname()
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       <div className="flex items-center justify-around px-2 pt-2 pb-2">
         {navItems.map(({ href, icon: Icon, label }) => {
-          const active = pathname === href
+          const active = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link
               key={href}
@@ -63,7 +64,7 @@ export function SidebarNav() {
   return (
     <nav className="space-y-1">
       {allNavItems.map(({ href, icon: Icon, label }) => {
-        const active = pathname === href
+        const active = pathname === href || pathname.startsWith(href + '/')
         return (
           <Link
             key={href}
