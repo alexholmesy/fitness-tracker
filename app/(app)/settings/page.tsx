@@ -120,6 +120,7 @@ export default function SettingsPage() {
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Goals</h2>
             <Input label="Goal Weight (kg)" name="goal_weight" type="number" step="0.1" defaultValue={profile?.goal_weight ?? ''} placeholder="85" />
             <Input label="Daily Calorie Target" name="daily_calorie_target" type="number" defaultValue={profile?.daily_calorie_target ?? 2000} required />
+            <Input label="Daily Protein Target (g)" name="daily_protein_target" type="number" defaultValue={profile?.daily_protein_target ?? 190} placeholder="190" required />
             <Input label="Daily Step Target" name="daily_step_target" type="number" defaultValue={profile?.daily_step_target ?? 10000} required />
             <Input label="Water Target (litres)" name="water_target" type="number" step="0.25" defaultValue={profile?.water_target ?? 2.5} required />
             <Input label="Sleep Target (hours)" name="sleep_target" type="number" step="0.5" defaultValue={profile?.sleep_target ?? 8} required />
