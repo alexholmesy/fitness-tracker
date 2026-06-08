@@ -1,23 +1,24 @@
 'use client'
 
 import { useState } from 'react'
-import { Scale, Flame, Footprints, Droplets } from 'lucide-react'
+import { Scale, Flame, Footprints, Droplets, Beef } from 'lucide-react'
 import { Modal, Input, SubmitButton } from '@/components/ui-kit'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import type { DashboardStats } from '@/types'
 
-type QuickLogType = 'weight' | 'calories' | 'steps' | 'water' | null
+type QuickLogType = 'weight' | 'calories' | 'steps' | 'water' | 'protein' | null
 
 const ALL_QUICK_ACTIONS = [
   { type: 'weight' as const, icon: Scale, label: 'Weight', color: 'text-primary', bg: 'bg-primary/10' },
   { type: 'calories' as const, icon: Flame, label: 'Calories', color: 'text-orange-400', bg: 'bg-orange-400/10' },
+  { type: 'protein' as const, icon: Beef, label: 'Protein', color: 'text-rose-400', bg: 'bg-rose-400/10' },
   { type: 'steps' as const, icon: Footprints, label: 'Steps', color: 'text-blue-400', bg: 'bg-blue-400/10' },
   { type: 'water' as const, icon: Droplets, label: 'Water', color: 'text-cyan-400', bg: 'bg-cyan-400/10' },
 ]
 
 export function DashboardClient({ stats, onSave, quickLog }: {
-  stats: DashboardStats
+  stats: DashboardStats & { proteinToday: number | null, proteinTarget: number }
   onSave: () => void
   quickLog: string[]
 }) {
@@ -41,13 +42,42 @@ export function DashboardClient({ stats, onSave, quickLog }: {
       if (!user) throw new Error('Not authenticated')
 
       if (activeLog === 'weight') {
-        await supabase.from('weight_entries').upsert({ user_id: user.id, date: today, weight: parseFloat(value) }, { onConflict: 'user_id,date' })
+        await supabase.from('weight_entries').upsert(
+          { user_id: user.id, date: today, weight: parseFloat(value) },
+          { onConflict: 'user_id,date' }
+        )
       } else if (activeLog === 'calories') {
-        await supabase.from('calorie_entries').upsert({ user_id: user.id, date: today, calories: parseInt(value) }, { onConflict: 'user_id,date' })
+        await supabase.from('calorie_entries').upsert(
+          { user_id: user.id, date: today, calories: parseInt(value) },
+          { onConflict: 'user_id,date' }
+        )
+      } else if (activeLog === 'protein') {
+        // Upsert the calorie entry with protein, preserving existing calories
+        const { data: existing } = await supabase
+          .from('calorie_entries')
+          .select('calories')
+          .eq('user_id', user.id)
+          .eq('date', today)
+          .single()
+        await supabase.from('calorie_entries').upsert(
+          {
+            user_id: user.id,
+            date: today,
+            calories: existing?.calories ?? 0,
+            protein_g: parseInt(value)
+          },
+          { onConflict: 'user_id,date' }
+        )
       } else if (activeLog === 'steps') {
-        await supabase.from('step_entries').upsert({ user_id: user.id, date: today, steps: parseInt(value) }, { onConflict: 'user_id,date' })
+        await supabase.from('step_entries').upsert(
+          { user_id: user.id, date: today, steps: parseInt(value) },
+          { onConflict: 'user_id,date' }
+        )
       } else if (activeLog === 'water') {
-        await supabase.from('water_entries').upsert({ user_id: user.id, date: today, litres: parseFloat(value) }, { onConflict: 'user_id,date' })
+        await supabase.from('water_entries').upsert(
+          { user_id: user.id, date: today, litres: parseFloat(value) },
+          { onConflict: 'user_id,date' }
+        )
       }
 
       setActiveLog(null)
@@ -59,9 +89,10 @@ export function DashboardClient({ stats, onSave, quickLog }: {
     }
   }
 
-  const configs = {
+  const configs: Record<string, { title: string; label: string; type: string; step?: string; placeholder: string }> = {
     weight: { title: 'Log Weight', label: 'Weight (kg)', type: 'number', step: '0.1', placeholder: '85.0' },
-    calories: { title: 'Log Calories', label: 'Calories (kcal)', type: 'number', placeholder: '2000' },
+    calories: { title: 'Log Calories', label: 'Calories (kcal)', type: 'number', placeholder: '2200' },
+    protein: { title: 'Log Protein', label: 'Protein (g)', type: 'number', placeholder: '190' },
     steps: { title: 'Log Steps', label: 'Steps', type: 'number', placeholder: '8000' },
     water: { title: 'Log Water', label: 'Litres', type: 'number', step: '0.1', placeholder: '2.5' },
   }
@@ -72,7 +103,10 @@ export function DashboardClient({ stats, onSave, quickLog }: {
 
   return (
     <>
-      <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${visibleActions.length}, 1fr)` }}>
+      <div
+        className="grid gap-2"
+        style={{ gridTemplateColumns: `repeat(${visibleActions.length}, 1fr)` }}
+      >
         {visibleActions.map(({ type, icon: Icon, label, color, bg }) => (
           <button
             key={type}
@@ -99,7 +133,7 @@ export function DashboardClient({ stats, onSave, quickLog }: {
               label={config.label}
               name="value"
               type={config.type}
-              step={(config as any).step}
+              step={config.step}
               placeholder={config.placeholder}
               required
               autoFocus
