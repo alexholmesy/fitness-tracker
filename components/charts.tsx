@@ -14,6 +14,7 @@ interface ChartProps {
   height?: number
   showGrid?: boolean
   autoScale?: boolean
+  decimals?: number
 }
 
 const CustomTooltip = ({ active, payload, label, unit }: any) => {
@@ -24,7 +25,7 @@ const CustomTooltip = ({ active, payload, label, unit }: any) => {
           {label && format(parseISO(label), 'MMM d')}
         </p>
         <p className="text-sm font-bold text-foreground">
-          {payload[0].value.toLocaleString()}{unit ? ` ${unit}` : ''}
+          {Number(payload[0].value).toFixed(1)}{unit ? ` ${unit}` : ''}
         </p>
       </div>
     )
@@ -33,7 +34,14 @@ const CustomTooltip = ({ active, payload, label, unit }: any) => {
 }
 
 export function TrendChart({
-  data, color = 'hsl(142, 72%, 55%)', type = 'area', unit, height = 160, showGrid = false, autoScale = true,
+  data,
+  color = 'hsl(142, 72%, 55%)',
+  type = 'area',
+  unit,
+  height = 160,
+  showGrid = false,
+  autoScale = true,
+  decimals = 1,
 }: ChartProps) {
   if (!data || data.length === 0) {
     return (
@@ -47,17 +55,24 @@ export function TrendChart({
     try { return format(parseISO(dateStr), 'MMM d') } catch { return dateStr }
   }
 
-  // Auto-scale: pad the min/max by 5% for area/line charts
+  const formatYAxis = (value: number) => {
+    return Number(value).toFixed(decimals)
+  }
+
   const values = data.map(d => d.value)
   const dataMin = Math.min(...values)
   const dataMax = Math.max(...values)
-  const padding = (dataMax - dataMin) * 0.3 || dataMax * 0.1
+  const range = dataMax - dataMin
+  const padding = range * 0.3 || dataMax * 0.05
   const yDomain = autoScale && type !== 'bar'
-    ? [Math.max(0, dataMin - padding), dataMax + padding]
+    ? [
+        parseFloat((dataMin - padding).toFixed(1)),
+        parseFloat((dataMax + padding).toFixed(1))
+      ]
     : ['auto', 'auto']
 
   const gradientId = `gradient-${Math.random().toString(36).substr(2, 9)}`
-  const commonProps = { data, margin: { top: 4, right: 4, left: -20, bottom: 0 } }
+  const commonProps = { data, margin: { top: 4, right: 8, left: -8, bottom: 0 } }
 
   if (type === 'bar') {
     return (
@@ -65,7 +80,7 @@ export function TrendChart({
         <BarChart {...commonProps}>
           {showGrid && <CartesianGrid strokeDasharray="3 3" />}
           <XAxis dataKey="date" tickFormatter={formatXAxis} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
+          <YAxis tickFormatter={v => Math.round(v).toString()} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
           <Tooltip content={<CustomTooltip unit={unit} />} />
           <Bar dataKey="value" fill={color} radius={[4, 4, 0, 0]} />
         </BarChart>
@@ -79,7 +94,7 @@ export function TrendChart({
         <LineChart {...commonProps}>
           {showGrid && <CartesianGrid strokeDasharray="3 3" />}
           <XAxis dataKey="date" tickFormatter={formatXAxis} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} domain={yDomain as any} />
+          <YAxis tickFormatter={formatYAxis} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} domain={yDomain as any} />
           <Tooltip content={<CustomTooltip unit={unit} />} />
           <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
         </LineChart>
@@ -98,7 +113,7 @@ export function TrendChart({
         </defs>
         {showGrid && <CartesianGrid strokeDasharray="3 3" />}
         <XAxis dataKey="date" tickFormatter={formatXAxis} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-        <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} domain={yDomain as any} />
+        <YAxis tickFormatter={formatYAxis} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} domain={yDomain as any} />
         <Tooltip content={<CustomTooltip unit={unit} />} />
         <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} dot={false} activeDot={{ r: 4 }} />
       </AreaChart>
