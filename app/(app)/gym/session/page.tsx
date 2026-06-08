@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Check, X, ChevronUp, ChevronDown, RefreshCw, Timer, MoreHorizontal } from 'lucide-react'
+import { Plus, Check, X, ChevronUp, ChevronDown, RefreshCw, Timer, MoreHorizontal, Trash2 } from 'lucide-react'
 
 interface SetData {
   exercise_name: string
@@ -19,7 +19,10 @@ interface ExerciseGroup {
   sets: SetData[]
   sort_order: number
   notes: string
+  restSeconds: number
 }
+
+const RPE_OPTIONS = [7, 7.5, 8, 8.5, 9, 9.5, 10]
 
 export default function SessionPage() {
   const searchParams = useSearchParams()
@@ -35,18 +38,20 @@ export default function SessionPage() {
   const [restTimer, setRestTimer] = useState<number | null>(null)
   const [restMax, setRestMax] = useState(90)
   const [restActive, setRestActive] = useState(false)
+  const [activeRestExercise, setActiveRestExercise] = useState<string | null>(null)
   const [showExercisePicker, setShowExercisePicker] = useState(false)
   const [swappingExercise, setSwappingExercise] = useState<string | null>(null)
   const [exerciseSearch, setExerciseSearch] = useState('')
   const [allExercises, setAllExercises] = useState<any[]>([])
   const [previousSets, setPreviousSets] = useState<Record<string, any[]>>({})
   const [prs, setPrs] = useState<Record<string, number>>({})
-  const [showRpeInput, setShowRpeInput] = useState<string | null>(null)
+  const [showRpePicker, setShowRpePicker] = useState<string | null>(null)
   const [showExerciseMenu, setShowExerciseMenu] = useState<string | null>(null)
+  const [showRestEdit, setShowRestEdit] = useState<string | null>(null)
+  const [swipedSet, setSwipedSet] = useState<string | null>(null)
   const restIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const supabase = createClient()
 
-  // Elapsed timer
   useEffect(() => {
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTime.getTime()) / 1000))
@@ -60,13 +65,13 @@ export default function SessionPage() {
     return `${m}:${sec.toString().padStart(2, '0')}`
   }
 
-  // Rest timer
   useEffect(() => {
     if (restActive && restTimer !== null && restTimer > 0) {
       restIntervalRef.current = setInterval(() => {
         setRestTimer(prev => {
           if (prev === null || prev <= 1) {
             setRestActive(false)
+            setActiveRestExercise(null)
             clearInterval(restIntervalRef.current!)
             return null
           }
@@ -74,22 +79,19 @@ export default function SessionPage() {
         })
       }, 1000)
     }
-    return () => {
-      if (restIntervalRef.current) clearInterval(restIntervalRef.current)
-    }
+    return () => { if (restIntervalRef.current) clearInterval(restIntervalRef.current) }
   }, [restActive])
 
-  const startRest = (seconds: number = 90) => {
+  const startRest = (exerciseName: string, seconds: number) => {
     if (restIntervalRef.current) clearInterval(restIntervalRef.current)
     setRestMax(seconds)
     setRestTimer(seconds)
     setRestActive(true)
+    setActiveRestExercise(exerciseName)
   }
 
   useEffect(() => {
-    supabase.from('exercises').select('*').order('name').then(({ data }) => {
-      setAllExercises(data ?? [])
-    })
+    supabase.from('exercises').select('*').order('name').then(({ data }) => setAllExercises(data ?? []))
   }, [])
 
   useEffect(() => {
@@ -99,36 +101,27 @@ export default function SessionPage() {
 
       const { data: session } = await supabase
         .from('workout_sessions')
-        .insert({
-          user_id: user.id,
-          name: 'New Workout',
-          started_at: startTime.toISOString(),
-          routine_id: routineId ?? null,
-        })
-        .select()
-        .single()
+        .insert({ user_id: user.id, name: 'New Workout', started_at: startTime.toISOString(), routine_id: routineId ?? null })
+        .select().single()
 
       if (!session) return
       setSessionId(session.id)
 
       if (routineId) {
         const { data: routine } = await supabase
-          .from('routines')
-          .select('*, routine_exercises(*)')
-          .eq('id', routineId)
-          .single()
+          .from('routines').select('*, routine_exercises(*)').eq('id', routineId).single()
 
         if (routine) {
           setSessionName(routine.name)
           await supabase.from('workout_sessions').update({ name: routine.name }).eq('id', session.id)
 
-          const sortedExercises = (routine.routine_exercises ?? [])
-            .sort((a: any, b: any) => a.sort_order - b.sort_order)
+          const sortedExercises = (routine.routine_exercises ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order)
 
-          const groups: ExerciseGroup[] = sortedExercises.map((ex: any, i: number) => ({
+          setExercises(sortedExercises.map((ex: any, i: number) => ({
             name: ex.exercise_name,
             sort_order: i,
             notes: '',
+            restSeconds: 90,
             sets: Array.from({ length: ex.target_sets ?? 3 }, (_, j) => ({
               exercise_name: ex.exercise_name,
               set_index: j,
@@ -137,9 +130,8 @@ export default function SessionPage() {
               rpe: '',
               completed: false,
             }))
-          }))
+          })))
 
-          setExercises(groups)
           await loadPreviousSets(sortedExercises.map((e: any) => e.exercise_name), user.id)
         }
       }
@@ -166,12 +158,8 @@ export default function SessionPage() {
 
       if (data && data.length > 0) {
         const mostRecentDate = (data[0].workout_sessions as any).started_at
-        const lastSessionSets = data
-          .filter(s => (s.workout_sessions as any).started_at === mostRecentDate)
-          .sort((a, b) => a.set_index - b.set_index)
-        prev[name] = lastSessionSets
-        const maxWeight = Math.max(...data.map(s => s.weight_kg ?? 0))
-        prMap[name] = maxWeight
+        prev[name] = data.filter(s => (s.workout_sessions as any).started_at === mostRecentDate).sort((a, b) => a.set_index - b.set_index)
+        prMap[name] = Math.max(...data.map(s => s.weight_kg ?? 0))
       }
     }
 
@@ -182,17 +170,8 @@ export default function SessionPage() {
   const updateSet = (exerciseName: string, setIndex: number, field: keyof SetData, value: string | boolean) => {
     setExercises(prev => prev.map(ex => {
       if (ex.name !== exerciseName) return ex
-      return {
-        ...ex,
-        sets: ex.sets.map((s, i) => i === setIndex ? { ...s, [field]: value } : s)
-      }
+      return { ...ex, sets: ex.sets.map((s, i) => i === setIndex ? { ...s, [field]: value } : s) }
     }))
-  }
-
-  const updateExerciseNotes = (exerciseName: string, notes: string) => {
-    setExercises(prev => prev.map(ex =>
-      ex.name === exerciseName ? { ...ex, notes } : ex
-    ))
   }
 
   const completeSet = async (exerciseName: string, setIndex: number) => {
@@ -214,7 +193,7 @@ export default function SessionPage() {
       sort_order: ex.sort_order * 100 + setIndex,
     })
 
-    startRest()
+    startRest(exerciseName, ex.restSeconds)
   }
 
   const uncompleteSet = (exerciseName: string, setIndex: number) => {
@@ -247,6 +226,7 @@ export default function SessionPage() {
         sets: ex.sets.filter((_, i) => i !== setIndex).map((s, i) => ({ ...s, set_index: i }))
       }
     }))
+    setSwipedSet(null)
   }
 
   const removeExercise = (exerciseName: string) => {
@@ -259,32 +239,25 @@ export default function SessionPage() {
       const idx = prev.findIndex(ex => ex.name === exerciseName)
       if (direction === 'up' && idx === 0) return prev
       if (direction === 'down' && idx === prev.length - 1) return prev
-      const newExercises = [...prev]
+      const next = [...prev]
       const swap = direction === 'up' ? idx - 1 : idx + 1
-      ;[newExercises[idx], newExercises[swap]] = [newExercises[swap], newExercises[idx]]
-      return newExercises
+      ;[next[idx], next[swap]] = [next[swap], next[idx]]
+      return next
     })
     setShowExerciseMenu(null)
+  }
+
+  const updateRestTime = (exerciseName: string, seconds: number) => {
+    setExercises(prev => prev.map(ex => ex.name === exerciseName ? { ...ex, restSeconds: seconds } : ex))
   }
 
   const addExercise = async (name: string) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-
     setExercises(prev => [...prev, {
-      name,
-      sort_order: prev.length,
-      notes: '',
-      sets: [{
-        exercise_name: name,
-        set_index: 0,
-        weight_kg: '',
-        reps: '',
-        rpe: '',
-        completed: false,
-      }]
+      name, sort_order: prev.length, notes: '', restSeconds: 90,
+      sets: [{ exercise_name: name, set_index: 0, weight_kg: '', reps: '', rpe: '', completed: false }]
     }])
-
     await loadPreviousSets([name], user.id)
     setShowExercisePicker(false)
     setSwappingExercise(null)
@@ -294,16 +267,10 @@ export default function SessionPage() {
   const swapExercise = async (oldName: string, newName: string) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-
     setExercises(prev => prev.map(ex => {
       if (ex.name !== oldName) return ex
-      return {
-        ...ex,
-        name: newName,
-        sets: ex.sets.map(s => ({ ...s, exercise_name: newName, completed: false }))
-      }
+      return { ...ex, name: newName, sets: ex.sets.map(s => ({ ...s, exercise_name: newName, completed: false })) }
     }))
-
     await loadPreviousSets([newName], user.id)
     setShowExercisePicker(false)
     setSwappingExercise(null)
@@ -312,7 +279,6 @@ export default function SessionPage() {
 
   const finishWorkout = async () => {
     if (!sessionId) return
-
     for (const ex of exercises) {
       for (const set of ex.sets) {
         if (!set.completed && (set.weight_kg || set.reps)) {
@@ -328,68 +294,48 @@ export default function SessionPage() {
         }
       }
     }
-
-    await supabase.from('workout_sessions').update({
-      finished_at: new Date().toISOString(),
-      name: sessionName,
-    }).eq('id', sessionId)
-
+    await supabase.from('workout_sessions').update({ finished_at: new Date().toISOString(), name: sessionName }).eq('id', sessionId)
     router.push('/gym')
   }
 
   const discardWorkout = async () => {
-    if (sessionId) {
-      await supabase.from('workout_sessions').delete().eq('id', sessionId)
-    }
+    if (sessionId) await supabase.from('workout_sessions').delete().eq('id', sessionId)
     router.push('/gym')
   }
 
-  // Live stats
   const totalSets = exercises.reduce((sum, ex) => sum + ex.sets.filter(s => s.completed).length, 0)
   const totalVolume = exercises.reduce((sum, ex) =>
     sum + ex.sets.filter(s => s.completed).reduce((s2, set) =>
-      s2 + (parseFloat(set.weight_kg) || 0) * (parseInt(set.reps) || 0), 0
-    ), 0
+      s2 + (parseFloat(set.weight_kg) || 0) * (parseInt(set.reps) || 0), 0), 0)
+
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <p className="text-muted-foreground text-sm">Starting workout...</p>
+    </div>
   )
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground text-sm">Starting workout...</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="pb-32 animate-fade-in" onClick={() => { setShowExerciseMenu(null); setShowRpeInput(null) }}>
+    <div className="pb-32 animate-fade-in" onClick={() => { setShowExerciseMenu(null); setShowRpePicker(null); setSwipedSet(null) }}>
 
-      {/* Sticky header */}
+      {/* Header */}
       <div className="sticky top-14 z-40 bg-background/98 backdrop-blur-xl border-b border-border">
         <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <button onClick={discardWorkout} className="w-8 h-8 flex items-center justify-center">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button onClick={discardWorkout} className="w-8 h-8 flex items-center justify-center flex-shrink-0">
               <X className="w-5 h-5 text-muted-foreground" />
             </button>
             <input
               value={sessionName}
               onChange={e => setSessionName(e.target.value)}
-              className="font-bold text-base bg-transparent border-none outline-none text-foreground"
+              className="font-bold text-base bg-transparent border-none outline-none text-foreground min-w-0 flex-1"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <button className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-secondary">
-              <Timer className="w-5 h-5 text-muted-foreground" />
-            </button>
-            <button
-              onClick={finishWorkout}
-              className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold press-effect"
-            >
-              Finish
-            </button>
-          </div>
+          <button onClick={finishWorkout} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold press-effect flex-shrink-0">
+            Finish
+          </button>
         </div>
 
-        {/* Live stats bar */}
+        {/* Live stats */}
         <div className="flex items-center gap-6 px-4 pb-3">
           <div>
             <p className="text-xs text-muted-foreground">Duration</p>
@@ -405,7 +351,7 @@ export default function SessionPage() {
           </div>
         </div>
 
-        {/* Rest timer bar */}
+        {/* Rest timer */}
         {restActive && restTimer !== null && (
           <div
             className="mx-4 mb-3 flex items-center gap-3 bg-primary/10 border border-primary/20 rounded-xl px-3 py-2 cursor-pointer"
@@ -414,8 +360,10 @@ export default function SessionPage() {
             <Timer className="w-4 h-4 text-primary flex-shrink-0" />
             <div className="flex-1">
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-primary font-semibold">Rest Timer</span>
-                <span className="text-primary font-bold">{restTimer}s</span>
+                <span className="text-primary font-semibold">
+                  Rest {activeRestExercise ? `· ${activeRestExercise}` : ''}
+                </span>
+                <span className="text-primary font-bold tabular-nums">{restTimer}s</span>
               </div>
               <div className="w-full bg-primary/20 rounded-full h-1.5">
                 <div
@@ -424,7 +372,7 @@ export default function SessionPage() {
                 />
               </div>
             </div>
-            <span className="text-xs text-muted-foreground">tap to dismiss</span>
+            <span className="text-[10px] text-muted-foreground flex-shrink-0">tap to skip</span>
           </div>
         )}
       </div>
@@ -442,18 +390,19 @@ export default function SessionPage() {
           const prevSets = previousSets[ex.name] ?? []
           const pr = prs[ex.name] ?? 0
           const isMenuOpen = showExerciseMenu === ex.name
+          const isRestEditOpen = showRestEdit === ex.name
 
           return (
             <div key={`${ex.name}-${exIdx}`} className="bg-card border-b border-border">
               {/* Exercise header */}
-              <div className="flex items-center justify-between px-4 pt-4 pb-2">
+              <div className="flex items-center justify-between px-4 pt-4 pb-1">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
                     <span className="text-lg">💪</span>
                   </div>
                   <p className="font-bold text-primary truncate">{ex.name}</p>
                 </div>
-                <div className="relative">
+                <div className="relative flex-shrink-0">
                   <button
                     onClick={e => { e.stopPropagation(); setShowExerciseMenu(isMenuOpen ? null : ex.name) }}
                     className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-secondary press-effect"
@@ -477,38 +426,59 @@ export default function SessionPage() {
                       </button>
                       <button onClick={() => removeExercise(ex.name)}
                         className="w-full px-4 py-3 text-left text-sm text-destructive hover:bg-destructive/10 flex items-center gap-2">
-                        <X className="w-4 h-4" /> Remove
+                        <X className="w-4 h-4" /> Remove Exercise
                       </button>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Exercise notes */}
+              {/* Notes */}
               <div className="px-4 pb-2">
                 <input
                   value={ex.notes}
-                  onChange={e => updateExerciseNotes(ex.name, e.target.value)}
+                  onChange={e => setExercises(prev => prev.map(e2 => e2.name === ex.name ? { ...e2, notes: e.target.value } : e2))}
                   placeholder="Add notes here..."
-                  className="w-full text-sm text-muted-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground/50"
+                  className="w-full text-sm text-muted-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground/40"
                 />
               </div>
 
               {/* Rest timer per exercise */}
-              {restActive && restTimer !== null && (
-                <div className="mx-4 mb-2 flex items-center gap-2 text-primary text-xs font-medium">
+              <div className="px-4 pb-3">
+                <button
+                  onClick={e => { e.stopPropagation(); setShowRestEdit(isRestEditOpen ? null : ex.name) }}
+                  className="flex items-center gap-1.5 text-primary text-xs font-medium press-effect"
+                >
                   <Timer className="w-3.5 h-3.5" />
-                  <span>Rest Timer: {Math.floor(restTimer / 60)}min {restTimer % 60}s</span>
-                </div>
-              )}
+                  <span>Rest Timer: {Math.floor(ex.restSeconds / 60)}min {ex.restSeconds % 60}s</span>
+                </button>
+
+                {isRestEditOpen && (
+                  <div className="mt-2 flex flex-wrap gap-2" onClick={e => e.stopPropagation()}>
+                    {[60, 90, 120, 150, 180, 240, 300].map(s => (
+                      <button
+                        key={s}
+                        onClick={() => { updateRestTime(ex.name, s); setShowRestEdit(null) }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border press-effect transition-all ${
+                          ex.restSeconds === s
+                            ? 'bg-primary/10 border-primary/30 text-primary'
+                            : 'bg-secondary border-border text-muted-foreground'
+                        }`}
+                      >
+                        {s < 60 ? `${s}s` : `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Set headers */}
               <div className="grid grid-cols-12 gap-1 px-4 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                 <div className="col-span-1">Set</div>
                 <div className="col-span-3">Previous</div>
                 <div className="col-span-3 text-center">KG</div>
-                <div className="col-span-3 text-center">Reps</div>
-                <div className="col-span-1 text-center">RPE</div>
+                <div className="col-span-2 text-center">Reps</div>
+                <div className="col-span-2 text-center">RPE</div>
                 <div className="col-span-1"></div>
               </div>
 
@@ -516,107 +486,127 @@ export default function SessionPage() {
               {ex.sets.map((set, setIdx) => {
                 const prevSet = prevSets[setIdx]
                 const isPR = set.completed && set.weight_kg && parseFloat(set.weight_kg) > pr && pr > 0
-                const isRpeOpen = showRpeInput === `${ex.name}-${setIdx}`
+                const swipeKey = `${ex.name}-${setIdx}`
+                const isSwiped = swipedSet === swipeKey
+                const isRpeOpen = showRpePicker === swipeKey
 
                 return (
-                  <div
-                    key={setIdx}
-                    className={`grid grid-cols-12 gap-1 items-center px-4 py-2 transition-all ${
-                      isPR ? 'bg-yellow-400/10' :
-                      set.completed ? 'bg-primary/5' : ''
-                    }`}
-                  >
-                    {/* Set number */}
-                    <div className="col-span-1 text-sm font-bold text-muted-foreground">{setIdx + 1}</div>
-
-                    {/* Previous */}
-                    <div className="col-span-3">
-                      {prevSet ? (
-                        <p className="text-[10px] text-muted-foreground leading-tight">
-                          {prevSet.weight_kg}kg x {prevSet.reps}
-                          {prevSet.rpe ? <><br />@ {prevSet.rpe} rpe</> : ''}
-                        </p>
-                      ) : (
-                        <p className="text-[10px] text-muted-foreground/40">—</p>
-                      )}
+                  <div key={setIdx} className="relative overflow-hidden">
+                    {/* Delete button revealed on swipe */}
+                    <div className="absolute right-0 top-0 bottom-0 flex items-center">
+                      <button
+                        onClick={() => removeSet(ex.name, setIdx)}
+                        className="h-full px-4 bg-destructive text-white flex items-center justify-center"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
 
-                    {/* Weight */}
-                    <input
-                      value={set.weight_kg}
-                      onChange={e => updateSet(ex.name, setIdx, 'weight_kg', e.target.value)}
-                      placeholder={prevSet?.weight_kg?.toString() ?? '0'}
-                      type="number"
-                      step="0.5"
-                      inputMode="decimal"
-                      disabled={set.completed}
-                      className={`col-span-3 px-2 py-2 rounded-lg text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-70 transition-all ${
-                        set.completed ? 'bg-transparent border-transparent' : 'bg-secondary border border-border'
-                      }`}
-                    />
+                    {/* Set row */}
+                    <div
+                      className={`grid grid-cols-12 gap-1 items-center px-4 py-2 transition-all duration-200 ${
+                        isSwiped ? '-translate-x-16' : 'translate-x-0'
+                      } ${isPR ? 'bg-yellow-400/10' : set.completed ? 'bg-primary/5' : 'bg-card'}`}
+                      onTouchStart={e => {
+                        const touch = e.touches[0]
+                        const startX = touch.clientX
+                        const handleMove = (moveEvent: TouchEvent) => {
+                          const diff = startX - moveEvent.touches[0].clientX
+                          if (diff > 50) {
+                            setSwipedSet(swipeKey)
+                            document.removeEventListener('touchmove', handleMove)
+                          } else if (diff < -10) {
+                            setSwipedSet(null)
+                            document.removeEventListener('touchmove', handleMove)
+                          }
+                        }
+                        document.addEventListener('touchmove', handleMove, { passive: true })
+                        setTimeout(() => document.removeEventListener('touchmove', handleMove), 1000)
+                      }}
+                    >
+                      <div className="col-span-1 text-sm font-bold text-muted-foreground">{setIdx + 1}</div>
 
-                    {/* Reps */}
-                    <input
-                      value={set.reps}
-                      onChange={e => updateSet(ex.name, setIdx, 'reps', e.target.value)}
-                      placeholder={prevSet?.reps?.toString() ?? '0'}
-                      type="number"
-                      inputMode="numeric"
-                      disabled={set.completed}
-                      className={`col-span-3 px-2 py-2 rounded-lg text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-70 transition-all ${
-                        set.completed ? 'bg-transparent border-transparent' : 'bg-secondary border border-border'
-                      }`}
-                    />
+                      <div className="col-span-3">
+                        {prevSet ? (
+                          <p className="text-[10px] text-muted-foreground leading-tight">
+                            {prevSet.weight_kg}kg×{prevSet.reps}
+                            {prevSet.rpe ? <><br/>@{prevSet.rpe}</> : ''}
+                          </p>
+                        ) : (
+                          <p className="text-[10px] text-muted-foreground/40">—</p>
+                        )}
+                      </div>
 
-                    {/* RPE button */}
-                    <div className="col-span-1 relative flex justify-center">
-                      {isRpeOpen ? (
-                        <input
-                          autoFocus
-                          value={set.rpe}
-                          onChange={e => updateSet(ex.name, setIdx, 'rpe', e.target.value)}
-                          onBlur={() => setShowRpeInput(null)}
-                          type="number"
-                          step="0.5"
-                          min="1"
-                          max="10"
-                          inputMode="decimal"
-                          className="w-10 px-1 py-1.5 rounded-lg bg-secondary border border-primary text-xs text-center focus:outline-none"
-                        />
-                      ) : (
+                      <input
+                        value={set.weight_kg}
+                        onChange={e => updateSet(ex.name, setIdx, 'weight_kg', e.target.value)}
+                        placeholder={prevSet?.weight_kg?.toString() ?? '0'}
+                        type="number"
+                        step="0.5"
+                        inputMode="decimal"
+                        disabled={set.completed}
+                        className={`col-span-3 px-2 py-2 rounded-lg text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-70 transition-all ${
+                          set.completed ? 'bg-transparent border-transparent' : 'bg-secondary border border-border'
+                        }`}
+                      />
+
+                      <input
+                        value={set.reps}
+                        onChange={e => updateSet(ex.name, setIdx, 'reps', e.target.value)}
+                        placeholder={prevSet?.reps?.toString() ?? '0'}
+                        type="number"
+                        inputMode="numeric"
+                        disabled={set.completed}
+                        className={`col-span-2 px-2 py-2 rounded-lg text-sm text-center font-semibold focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-70 transition-all ${
+                          set.completed ? 'bg-transparent border-transparent' : 'bg-secondary border border-border'
+                        }`}
+                      />
+
+                      {/* RPE picker */}
+                      <div className="col-span-2 relative flex justify-center" onClick={e => e.stopPropagation()}>
                         <button
-                          onClick={e => { e.stopPropagation(); setShowRpeInput(`${ex.name}-${setIdx}`) }}
+                          onClick={() => !set.completed && setShowRpePicker(isRpeOpen ? null : swipeKey)}
                           disabled={set.completed}
-                          className={`px-1.5 py-1.5 rounded-lg text-[10px] font-bold border transition-all press-effect ${
+                          className={`w-full px-1 py-1.5 rounded-lg text-[11px] font-bold border transition-all press-effect ${
                             set.rpe
                               ? 'bg-primary/10 border-primary/30 text-primary'
                               : 'bg-secondary border-border text-muted-foreground'
                           }`}
                         >
-                          {set.rpe || 'RPE'}
+                          {set.rpe ? `RPE ${set.rpe}` : 'RPE'}
                         </button>
-                      )}
-                    </div>
 
-                    {/* Complete / delete */}
-                    <div className="col-span-1 flex justify-center">
-                      {set.completed ? (
+                        {isRpeOpen && (
+                          <div className="absolute bottom-9 left-1/2 -translate-x-1/2 z-50 bg-card border border-border rounded-xl shadow-xl p-2 flex flex-wrap gap-1 w-44">
+                            {RPE_OPTIONS.map(rpe => (
+                              <button
+                                key={rpe}
+                                onClick={() => { updateSet(ex.name, setIdx, 'rpe', rpe.toString()); setShowRpePicker(null) }}
+                                className={`flex-1 min-w-[36px] py-2 rounded-lg text-xs font-bold press-effect transition-all ${
+                                  set.rpe === rpe.toString()
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-secondary text-foreground hover:bg-primary/20'
+                                }`}
+                              >
+                                {rpe}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="col-span-1 flex justify-center">
                         <button
-                          onClick={() => uncompleteSet(ex.name, setIdx)}
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center press-effect ${
-                            isPR ? 'bg-yellow-400/30 text-yellow-400' : 'bg-primary/20 text-primary'
+                          onClick={() => set.completed ? uncompleteSet(ex.name, setIdx) : completeSet(ex.name, setIdx)}
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center press-effect transition-all ${
+                            isPR ? 'bg-yellow-400/30 text-yellow-400' :
+                            set.completed ? 'bg-primary/20 text-primary' :
+                            'bg-secondary border border-border text-muted-foreground hover:bg-primary/20 hover:text-primary'
                           }`}
                         >
                           <Check className="w-4 h-4" />
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => completeSet(ex.name, setIdx)}
-                          className="w-7 h-7 rounded-lg bg-secondary border border-border text-muted-foreground flex items-center justify-center press-effect hover:bg-primary/20 hover:text-primary hover:border-primary/30 transition-all"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                      )}
+                      </div>
                     </div>
                   </div>
                 )
@@ -626,7 +616,7 @@ export default function SessionPage() {
               <div className="px-4 py-3">
                 <button
                   onClick={() => addSet(ex.name)}
-                  className="w-full py-2.5 rounded-xl bg-secondary text-sm font-semibold text-muted-foreground flex items-center justify-center gap-2 press-effect hover:text-foreground transition-all"
+                  className="w-full py-2.5 rounded-xl bg-secondary text-sm font-semibold text-muted-foreground flex items-center justify-center gap-2 press-effect hover:text-foreground"
                 >
                   <Plus className="w-4 h-4" /> Add Set
                 </button>
@@ -635,7 +625,6 @@ export default function SessionPage() {
           )
         })}
 
-        {/* Add exercise */}
         <div className="px-4 py-4">
           <button
             onClick={() => { setSwappingExercise(null); setShowExercisePicker(true) }}
@@ -649,14 +638,8 @@ export default function SessionPage() {
       {/* Exercise picker */}
       {showExercisePicker && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => { setShowExercisePicker(false); setSwappingExercise(null) }}
-          />
-          <div
-            className="relative z-10 w-full max-w-lg bg-card border border-border rounded-t-2xl shadow-2xl flex flex-col"
-            style={{ height: '80vh' }}
-          >
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowExercisePicker(false); setSwappingExercise(null) }} />
+          <div className="relative z-10 w-full max-w-lg bg-card border border-border rounded-t-2xl shadow-2xl flex flex-col" style={{ height: '80vh' }}>
             <div className="flex-shrink-0 px-5 pt-3 pb-3 border-b border-border">
               <div className="flex justify-center mb-2">
                 <div className="w-10 h-1 rounded-full bg-border" />
@@ -692,21 +675,18 @@ export default function SessionPage() {
                 </>
               ) : (
                 <>
-                  {allExercises
-                    .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase()))
-                    .map(ex => (
-                      <button
-                        key={ex.id}
-                        onClick={() => swappingExercise ? swapExercise(swappingExercise, ex.name) : addExercise(ex.name)}
-                        className="w-full flex items-center justify-between px-5 py-3 hover:bg-secondary transition-colors text-left border-b border-border/50 press-effect"
-                      >
-                        <div>
-                          <p className="text-sm font-medium">{ex.name}</p>
-                          <p className="text-xs text-muted-foreground">{ex.muscle_group} · {ex.equipment}</p>
-                        </div>
-                        <Plus className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      </button>
-                    ))}
+                  {allExercises.filter(ex => ex.name.toLowerCase().includes(exerciseSearch.toLowerCase())).map(ex => (
+                    <button key={ex.id}
+                      onClick={() => swappingExercise ? swapExercise(swappingExercise, ex.name) : addExercise(ex.name)}
+                      className="w-full flex items-center justify-between px-5 py-3 hover:bg-secondary transition-colors text-left border-b border-border/50 press-effect"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{ex.name}</p>
+                        <p className="text-xs text-muted-foreground">{ex.muscle_group} · {ex.equipment}</p>
+                      </div>
+                      <Plus className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    </button>
+                  ))}
                   {exerciseSearch && !allExercises.find(e => e.name.toLowerCase() === exerciseSearch.toLowerCase()) && (
                     <button
                       onClick={() => swappingExercise ? swapExercise(swappingExercise, exerciseSearch) : addExercise(exerciseSearch)}
@@ -726,11 +706,7 @@ export default function SessionPage() {
   )
 }
 
-function SuggestedExercises({
-  swappingExercise,
-  allExercises,
-  onSelect,
-}: {
+function SuggestedExercises({ swappingExercise, allExercises, onSelect }: {
   swappingExercise: string | null
   allExercises: any[]
   onSelect: (name: string) => void
@@ -742,37 +718,25 @@ function SuggestedExercises({
     async function fetchMostUsed() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-
       const { data } = await supabase
         .from('workout_sets')
         .select('exercise_name, workout_sessions!inner(user_id)')
         .eq('workout_sessions.user_id', user.id)
-
       if (!data) return
 
       const counts = new Map<string, number>()
-      for (const s of data) {
-        counts.set(s.exercise_name, (counts.get(s.exercise_name) ?? 0) + 1)
-      }
+      for (const s of data) counts.set(s.exercise_name, (counts.get(s.exercise_name) ?? 0) + 1)
 
       let filtered = Array.from(counts.entries())
-
       if (swappingExercise) {
         const swappingEx = allExercises.find(e => e.name === swappingExercise)
         if (swappingEx?.muscle_group) {
-          const sameMuscle = new Set(
-            allExercises.filter(e => e.muscle_group === swappingEx.muscle_group).map(e => e.name)
-          )
+          const sameMuscle = new Set(allExercises.filter(e => e.muscle_group === swappingEx.muscle_group).map(e => e.name))
           filtered = filtered.filter(([name]) => sameMuscle.has(name) && name !== swappingExercise)
         }
       }
 
-      const top = filtered
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8)
-        .map(([name, count]) => ({ name, count }))
-
-      setSuggested(top)
+      setSuggested(filtered.sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, count]) => ({ name, count })))
     }
     fetchMostUsed()
   }, [swappingExercise])
@@ -786,11 +750,8 @@ function SuggestedExercises({
       </p>
       <div className="flex flex-wrap gap-2">
         {suggested.map(({ name, count }) => (
-          <button
-            key={name}
-            onClick={() => onSelect(name)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary border border-border text-xs font-medium press-effect hover:border-primary/50 hover:text-primary transition-all"
-          >
+          <button key={name} onClick={() => onSelect(name)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-secondary border border-border text-xs font-medium press-effect hover:border-primary/50 hover:text-primary transition-all">
             <span>{name}</span>
             <span className="text-muted-foreground opacity-60">×{count}</span>
           </button>
@@ -800,13 +761,7 @@ function SuggestedExercises({
   )
 }
 
-function ExerciseListByGroup({
-  exercises,
-  onSelect,
-}: {
-  exercises: any[]
-  onSelect: (name: string) => void
-}) {
+function ExerciseListByGroup({ exercises, onSelect }: { exercises: any[], onSelect: (name: string) => void }) {
   const groups = exercises.reduce((acc: Record<string, any[]>, ex) => {
     const group = ex.muscle_group ?? 'Other'
     if (!acc[group]) acc[group] = []
@@ -829,11 +784,8 @@ function ExerciseListByGroup({
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{group}</p>
           </div>
           {groups[group].map((ex: any) => (
-            <button
-              key={ex.id}
-              onClick={() => onSelect(ex.name)}
-              className="w-full flex items-center justify-between px-5 py-3 hover:bg-secondary transition-colors text-left border-b border-border/50 press-effect"
-            >
+            <button key={ex.id} onClick={() => onSelect(ex.name)}
+              className="w-full flex items-center justify-between px-5 py-3 hover:bg-secondary transition-colors text-left border-b border-border/50 press-effect">
               <div>
                 <p className="text-sm font-medium">{ex.name}</p>
                 <p className="text-xs text-muted-foreground">{ex.equipment}</p>
