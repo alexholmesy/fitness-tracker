@@ -7,6 +7,7 @@ import { StatCard, ProgressBar } from '@/components/stat-card'
 import { TrendChart } from '@/components/charts'
 import { Scale, Flame, Footprints, Dumbbell, Moon, Droplets, Beef } from 'lucide-react'
 import { format } from 'date-fns'
+import { calculateStreak } from '@/lib/streak'
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
@@ -21,6 +22,7 @@ export default function DashboardPage() {
     const todayStr = format(new Date(), 'yyyy-MM-dd')
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
     const [
       { data: profile },
@@ -33,6 +35,10 @@ export default function DashboardPage() {
       { data: weights },
       { data: calories },
       { data: steps },
+      { data: recentCalories },
+      { data: recentSteps },
+      { data: recentWeights },
+      { data: recentWorkouts },
     ] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).single(),
       supabase.from('weight_entries').select('weight').eq('user_id', user.id).order('date', { ascending: false }).limit(1).single(),
@@ -44,6 +50,10 @@ export default function DashboardPage() {
       supabase.from('weight_entries').select('date, weight').eq('user_id', user.id).gte('date', thirtyDaysAgo).order('date', { ascending: true }),
       supabase.from('calorie_entries').select('date, calories').eq('user_id', user.id).gte('date', thirtyDaysAgo).order('date', { ascending: true }),
       supabase.from('step_entries').select('date, steps').eq('user_id', user.id).gte('date', thirtyDaysAgo).order('date', { ascending: true }),
+      supabase.from('calorie_entries').select('date, calories, protein_g').eq('user_id', user.id).gte('date', ninetyDaysAgo).order('date', { ascending: true }),
+      supabase.from('step_entries').select('date, steps').eq('user_id', user.id).gte('date', ninetyDaysAgo).order('date', { ascending: true }),
+      supabase.from('weight_entries').select('date, weight').eq('user_id', user.id).gte('date', ninetyDaysAgo).order('date', { ascending: true }),
+      supabase.from('workouts').select('date').eq('user_id', user.id).gte('date', ninetyDaysAgo),
     ])
 
     const avgSleep = weekSleep && weekSleep.length > 0
@@ -52,6 +62,36 @@ export default function DashboardPage() {
 
     const quickLog = profile?.dashboard_quick_log ?? ['weight', 'calories', 'steps', 'water']
     const dashboardStats = profile?.dashboard_stats ?? ['calories', 'steps', 'water', 'weight', 'workouts', 'sleep']
+    const streakConditions = profile?.streak_conditions ?? ['calories_under', 'protein_met', 'steps_met']
+
+    // Build streak day data
+    const workoutDates = new Set((recentWorkouts ?? []).map((w: any) => w.date))
+    const calMap = new Map((recentCalories ?? []).map((c: any) => [c.date, c]))
+    const stepMap = new Map((recentSteps ?? []).map((s: any) => [s.date, s.steps]))
+    const weightMap = new Map((recentWeights ?? []).map((w: any) => [w.date, w.weight]))
+
+    const allDates = new Set([
+      ...Array.from(calMap.keys()),
+      ...Array.from(stepMap.keys()),
+      ...Array.from(weightMap.keys()),
+      ...Array.from(workoutDates),
+    ])
+
+    const streakDays = Array.from(allDates).map(date => ({
+      date,
+      calories: calMap.get(date)?.calories ?? null,
+      protein_g: calMap.get(date)?.protein_g ?? null,
+      steps: stepMap.get(date) ?? null,
+      weight: weightMap.get(date) ?? null,
+      workout: workoutDates.has(date),
+    }))
+
+    const streak = calculateStreak(streakDays, {
+      daily_calorie_target: profile?.daily_calorie_target ?? 2000,
+      daily_protein_target: profile?.daily_protein_target ?? 190,
+      daily_step_target: profile?.daily_step_target ?? 10000,
+      streak_conditions: streakConditions,
+    })
 
     setData({
       stats: {
@@ -68,6 +108,7 @@ export default function DashboardPage() {
         waterTarget: profile?.water_target ?? 2.5,
         weightChangeWeek: null,
       },
+      streak,
       quickLog,
       dashboardStats,
       weightData: (weights ?? []).map((w: any) => ({ date: w.date, value: w.weight })),
@@ -89,7 +130,7 @@ export default function DashboardPage() {
     )
   }
 
-  const { stats, quickLog, dashboardStats, weightData, calorieData, stepData } = data
+  const { stats, streak, quickLog, dashboardStats, weightData, calorieData, stepData } = data
 
   const statCards: Record<string, React.ReactNode> = {
     calories: (
@@ -173,9 +214,18 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5 px-4 pb-6 animate-fade-in">
-      <div className="pt-4">
-        <p className="text-sm text-muted-foreground">{today}</p>
-        <h1 className="text-2xl font-bold mt-0.5">Dashboard</h1>
+      <div className="pt-4 flex items-start justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">{today}</p>
+          <h1 className="text-2xl font-bold mt-0.5">Dashboard</h1>
+        </div>
+        {streak > 0 && (
+          <div className="flex flex-col items-center bg-orange-400/10 border border-orange-400/20 rounded-2xl px-4 py-2">
+            <span className="text-2xl">🔥</span>
+            <span className="text-lg font-bold text-orange-400 leading-none">{streak}</span>
+            <span className="text-[10px] text-orange-400/70 font-medium">day streak</span>
+          </div>
+        )}
       </div>
 
       <DashboardClient stats={stats} onSave={fetchData} quickLog={quickLog} />
@@ -186,7 +236,6 @@ export default function DashboardPage() {
           {dashboardStats.map((id: string) => statCards[id]).filter(Boolean)}
         </div>
 
-        {/* Protein card — always shown if logged */}
         {stats.proteinToday !== null && (
           <StatCard
             label="Protein"
