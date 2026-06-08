@@ -31,15 +31,17 @@ export default function CaloriesPage() {
   useEffect(() => { fetchData() }, [range])
 
   const chartData = entries.map(e => ({ date: e.date, value: e.calories }))
+  const proteinData = entries.filter(e => e.protein_g).map(e => ({ date: e.date, value: e.protein_g }))
   const values = entries.map(e => e.calories)
   const avg = values.length > 0 ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null
-  const max = values.length > 0 ? Math.max(...values) : null
-  const min = values.length > 0 ? Math.min(...values) : null
+  const avgProtein = entries.filter(e => e.protein_g).length > 0
+    ? Math.round(entries.filter(e => e.protein_g).reduce((s, e) => s + e.protein_g, 0) / entries.filter(e => e.protein_g).length)
+    : null
 
   return (
     <div className="space-y-4 animate-fade-in">
       <PageHeader
-        title="Calories"
+        title="Calories & Protein"
         subtitle="Daily intake tracking"
         action={
           <CaloriesClient
@@ -59,22 +61,36 @@ export default function CaloriesPage() {
           ))}
         </div>
       </div>
+
       <div className="mx-4 stat-card">
         <p className="text-xs font-medium text-muted-foreground mb-3">Daily Calories</p>
-        <TrendChart data={chartData} color="hsl(25, 95%, 55%)" type="bar" unit="kcal" height={180} />
+        <TrendChart data={chartData} color="hsl(25, 95%, 55%)" type="bar" unit="kcal" height={160} />
       </div>
-      <div className="px-4 grid grid-cols-3 gap-3">
-        {[
-          { label: 'Average', value: avg ? avg.toLocaleString() : '--' },
-          { label: 'Highest', value: max ? max.toLocaleString() : '--' },
-          { label: 'Lowest', value: min ? min.toLocaleString() : '--' },
-        ].map(({ label, value }) => (
-          <div key={label} className="stat-card text-center">
-            <p className="text-xs text-muted-foreground mb-1">{label}</p>
-            <p className="text-sm font-bold">{value}</p>
-          </div>
-        ))}
+
+      {proteinData.length > 0 && (
+        <div className="mx-4 stat-card">
+          <p className="text-xs font-medium text-muted-foreground mb-3">Daily Protein (g)</p>
+          <TrendChart data={proteinData} color="hsl(217, 72%, 55%)" type="bar" unit="g" height={160} />
+        </div>
+      )}
+
+      <div className="px-4 grid grid-cols-2 gap-3">
+        <div className="stat-card text-center">
+          <p className="text-xs text-muted-foreground mb-1">Avg Calories</p>
+          <p className="text-xl font-bold">{avg ? avg.toLocaleString() : '--'}</p>
+          {profile?.daily_calorie_target && (
+            <p className="text-xs text-muted-foreground mt-1">target {profile.daily_calorie_target.toLocaleString()}</p>
+          )}
+        </div>
+        <div className="stat-card text-center">
+          <p className="text-xs text-muted-foreground mb-1">Avg Protein</p>
+          <p className="text-xl font-bold">{avgProtein ? `${avgProtein}g` : '--'}</p>
+          {profile?.daily_protein_target && (
+            <p className="text-xs text-muted-foreground mt-1">target {profile.daily_protein_target}g</p>
+          )}
+        </div>
       </div>
+
       <div className="px-4 space-y-2">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">History</h2>
         {loading ? (
@@ -85,6 +101,7 @@ export default function CaloriesPage() {
             onDelete={fetchData}
             onEdit={(entry) => setEditingEntry(entry)}
             calorieTarget={profile?.daily_calorie_target ?? 2000}
+            proteinTarget={profile?.daily_protein_target ?? 190}
           />
         )}
       </div>
