@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, Check, X, ChevronUp, ChevronDown, RefreshCw, Timer, MoreHorizontal, Trash2 } from 'lucide-react'
+import { useWorkout } from '@/lib/workout-context'
 
 interface SetData {
   exercise_name: string
@@ -51,6 +52,7 @@ export default function SessionPage() {
   const [swipedSet, setSwipedSet] = useState<string | null>(null)
   const restIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const supabase = createClient()
+  const { setActiveWorkout } = useWorkout()
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -106,6 +108,12 @@ export default function SessionPage() {
 
       if (!session) return
       setSessionId(session.id)
+      setActiveWorkout({
+  sessionId: session.id,
+  sessionName: routine?.name ?? 'New Workout',
+  startTime: startTime,
+})
+
 
       if (routineId) {
         const { data: routine } = await supabase
@@ -296,11 +304,13 @@ export default function SessionPage() {
     }
     await supabase.from('workout_sessions').update({ finished_at: new Date().toISOString(), name: sessionName }).eq('id', sessionId)
     router.push('/gym')
+    setActiveWorkout(null)
   }
 
   const discardWorkout = async () => {
     if (sessionId) await supabase.from('workout_sessions').delete().eq('id', sessionId)
     router.push('/gym')
+    setActiveWorkout(null)
   }
 
   const totalSets = exercises.reduce((sum, ex) => sum + ex.sets.filter(s => s.completed).length, 0)
@@ -321,9 +331,13 @@ export default function SessionPage() {
       <div className="sticky top-14 z-40 bg-background/98 backdrop-blur-xl border-b border-border">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <button onClick={discardWorkout} className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-              <X className="w-5 h-5 text-muted-foreground" />
+            <button 
+              onClick={() => router.push('/gym')}
+              className="w-8 h-8 flex items-center justify-center flex-shrink-0"
+>
+              <ChevronDown className="w-5 h-5 text-muted-foreground" />
             </button>
+
             <input
               value={sessionName}
               onChange={e => setSessionName(e.target.value)}
@@ -563,37 +577,20 @@ export default function SessionPage() {
                       />
 
                       {/* RPE picker */}
-                      <div className="col-span-2 relative flex justify-center" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={() => !set.completed && setShowRpePicker(isRpeOpen ? null : swipeKey)}
-                          disabled={set.completed}
-                          className={`w-full px-1 py-1.5 rounded-lg text-[11px] font-bold border transition-all press-effect ${
-                            set.rpe
-                              ? 'bg-primary/10 border-primary/30 text-primary'
-                              : 'bg-secondary border-border text-muted-foreground'
-                          }`}
-                        >
-                          {set.rpe ? `RPE ${set.rpe}` : 'RPE'}
-                        </button>
+<div className="col-span-2 flex justify-center">
+  <button
+    onClick={e => { e.stopPropagation(); if (!set.completed) setShowRpePicker(isRpeOpen ? null : swipeKey) }}
+    disabled={set.completed}
+    className={`w-full px-1 py-1.5 rounded-lg text-[11px] font-bold border transition-all press-effect ${
+      set.rpe
+        ? 'bg-primary/10 border-primary/30 text-primary'
+        : 'bg-secondary border-border text-muted-foreground'
+    }`}
+  >
+    {set.rpe ? `${set.rpe}` : 'RPE'}
+  </button>
+</div>
 
-                        {isRpeOpen && (
-                          <div className="absolute bottom-9 left-1/2 -translate-x-1/2 z-50 bg-card border border-border rounded-xl shadow-xl p-2 flex flex-wrap gap-1 w-44">
-                            {RPE_OPTIONS.map(rpe => (
-                              <button
-                                key={rpe}
-                                onClick={() => { updateSet(ex.name, setIdx, 'rpe', rpe.toString()); setShowRpePicker(null) }}
-                                className={`flex-1 min-w-[36px] py-2 rounded-lg text-xs font-bold press-effect transition-all ${
-                                  set.rpe === rpe.toString()
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-secondary text-foreground hover:bg-primary/20'
-                                }`}
-                              >
-                                {rpe}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
 
                       <div className="col-span-1 flex justify-center">
                         <button
@@ -634,6 +631,57 @@ export default function SessionPage() {
           </button>
         </div>
       </div>
+      
+{/* RPE overlay */}
+{showRpePicker && (
+  <div
+    className="fixed inset-0 z-50 flex items-end justify-center"
+    onClick={() => setShowRpePicker(null)}
+  >
+    <div className="absolute inset-0 bg-black/50" />
+    <div
+      className="relative z-10 w-full max-w-lg bg-card border border-border rounded-t-2xl p-5 space-y-4"
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="flex justify-center">
+        <div className="w-10 h-1 rounded-full bg-border" />
+      </div>
+      <div className="text-center">
+        <h3 className="font-semibold">Rate of Perceived Exertion</h3>
+        <p className="text-xs text-muted-foreground mt-1">How hard was this set?</p>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {RPE_OPTIONS.map(rpe => {
+          const [exName, setIdxStr] = showRpePicker.split('-')
+          const setIdx = parseInt(setIdxStr)
+          const currentRpe = exercises.find(e => e.name === exName)?.sets[setIdx]?.rpe
+          return (
+            <button
+              key={rpe}
+              onClick={() => {
+                const [exName, setIdxStr] = showRpePicker.split('-')
+                updateSet(exName, parseInt(setIdxStr), 'rpe', rpe.toString())
+                setShowRpePicker(null)
+              }}
+              className={`py-3 rounded-xl text-sm font-bold press-effect transition-all ${
+                currentRpe === rpe.toString()
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-foreground hover:bg-primary/20'
+              }`}
+            >
+              {rpe}
+            </button>
+          )
+        })}
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-[10px] text-muted-foreground text-center pb-2">
+        <span>7–7.5 Hard</span>
+        <span>8–8.5 Very Hard</span>
+        <span>9–10 Max</span>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Exercise picker */}
       {showExercisePicker && (
