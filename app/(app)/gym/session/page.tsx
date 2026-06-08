@@ -110,9 +110,10 @@ export default function SessionPage() {
       setSessionId(session.id)
       setActiveWorkout({
   sessionId: session.id,
-  sessionName: routine?.name ?? 'New Workout',
+  sessionName: sessionName,
   startTime: startTime,
 })
+
 
 
       if (routineId) {
