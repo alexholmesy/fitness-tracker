@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { PageHeader } from '@/components/ui-kit'
 import { TrendChart } from '@/components/charts'
-import { StepsClient } from './steps-client'
+import { StepsClient, StepsHistoryList } from './steps-client'
 
 export default function StepsPage() {
   const [entries, setEntries] = useState<any[]>([])
   const [range, setRange] = useState('30d')
   const [loading, setLoading] = useState(true)
+  const [editingEntry, setEditingEntry] = useState<any>(null)
   const supabase = createClient()
 
   const fetchData = async () => {
@@ -31,7 +32,17 @@ export default function StepsPage() {
 
   return (
     <div className="space-y-4 animate-fade-in">
-      <PageHeader title="Steps" subtitle="Daily step tracking" action={<StepsClient onSave={fetchData} />} />
+      <PageHeader
+        title="Steps"
+        subtitle="Daily step tracking"
+        action={
+          <StepsClient
+            onSave={fetchData}
+            editingEntry={editingEntry}
+            onEditClose={() => setEditingEntry(null)}
+          />
+        }
+      />
       <div className="px-4">
         <div className="flex items-center gap-1 bg-secondary rounded-xl p-1">
           {['7d', '30d', '90d', '1y', 'all'].map(r => (
@@ -62,17 +73,12 @@ export default function StepsPage() {
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">History</h2>
         {loading ? (
           <div className="stat-card text-center py-8"><p className="text-sm text-muted-foreground">Loading...</p></div>
-        ) : entries.length === 0 ? (
-          <div className="stat-card text-center py-8"><p className="text-sm text-muted-foreground">No entries yet.</p></div>
         ) : (
-          <div className="space-y-2">
-            {[...entries].reverse().map(entry => (
-              <div key={entry.id} className="stat-card flex items-center justify-between">
-                <p className="text-sm font-semibold">{entry.steps.toLocaleString()} steps</p>
-                <p className="text-xs text-muted-foreground">{entry.date}</p>
-              </div>
-            ))}
-          </div>
+          <StepsHistoryList
+            entries={entries}
+            onDelete={fetchData}
+            onEdit={(entry) => setEditingEntry(entry)}
+          />
         )}
       </div>
     </div>
