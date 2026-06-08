@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Play, ChevronRight, Trophy } from 'lucide-react'
+import { Plus, Play, ChevronRight, Trophy, Trash2 } from 'lucide-react'
 import { HevyImport } from '../workouts/hevy-import'
 import { format } from 'date-fns'
 
