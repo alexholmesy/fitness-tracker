@@ -23,8 +23,6 @@ const QUICK_LOG_OPTIONS = [
   { id: 'water', label: 'Water' },
 ]
 
-
-
 const DASHBOARD_STAT_OPTIONS = [
   { id: 'calories', label: 'Calories' },
   { id: 'steps', label: 'Steps' },
@@ -32,6 +30,14 @@ const DASHBOARD_STAT_OPTIONS = [
   { id: 'weight', label: 'Weight' },
   { id: 'workouts', label: 'Workouts' },
   { id: 'sleep', label: 'Sleep' },
+]
+
+const STREAK_CONDITIONS = [
+  { id: 'calories_under', label: 'Under calorie target' },
+  { id: 'protein_met', label: 'Hit protein target' },
+  { id: 'steps_met', label: 'Hit step target' },
+  { id: 'weight_logged', label: 'Logged weight' },
+  { id: 'workout_done', label: 'Completed a workout' },
 ]
 
 export default function SettingsPage() {
@@ -42,6 +48,7 @@ export default function SettingsPage() {
   const [trackedMetrics, setTrackedMetrics] = useState<string[]>([])
   const [quickLog, setQuickLog] = useState<string[]>([])
   const [dashboardStats, setDashboardStats] = useState<string[]>([])
+  const [streakConditions, setStreakConditions] = useState<string[]>([])
   const supabase = createClient()
 
   useEffect(() => {
@@ -53,6 +60,7 @@ export default function SettingsPage() {
       setTrackedMetrics(data?.tracked_metrics ?? ALL_METRICS.map(m => m.id))
       setQuickLog(data?.dashboard_quick_log ?? ['weight', 'calories', 'steps', 'water'])
       setDashboardStats(data?.dashboard_stats ?? ['calories', 'steps', 'water', 'weight', 'workouts', 'sleep'])
+      setStreakConditions(data?.streak_conditions ?? ['calories_under', 'protein_met', 'steps_met'])
     }
     fetchProfile()
   }, [])
@@ -86,6 +94,7 @@ export default function SettingsPage() {
         tracked_metrics: trackedMetrics,
         dashboard_quick_log: quickLog,
         dashboard_stats: dashboardStats,
+        streak_conditions: streakConditions,
         updated_at: new Date().toISOString(),
       }).eq('id', user.id)
       if (error) throw error
@@ -129,7 +138,7 @@ export default function SettingsPage() {
             <Input label="Sleep Target (hours)" name="sleep_target" type="number" step="0.5" defaultValue={profile?.sleep_target ?? 8} required />
           </div>
 
-          {/* Weight unit */}
+          {/* Preferences */}
           <div className="space-y-3">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Preferences</h2>
             <div className="space-y-1.5">
@@ -153,38 +162,26 @@ export default function SettingsPage() {
             <p className="text-xs text-muted-foreground">Choose which sections appear in your app.</p>
             <div className="grid grid-cols-2 gap-2">
               {ALL_METRICS.map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => toggleItem(trackedMetrics, setTrackedMetrics, id)}
+                <button key={id} type="button" onClick={() => toggleItem(trackedMetrics, setTrackedMetrics, id)}
                   className={`px-3 py-2.5 rounded-xl text-sm font-medium border transition-all press-effect text-left ${
-                    trackedMetrics.includes(id)
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border bg-secondary text-muted-foreground'
-                  }`}
-                >
+                    trackedMetrics.includes(id) ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-secondary text-muted-foreground'
+                  }`}>
                   {trackedMetrics.includes(id) ? '✓ ' : ''}{label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Dashboard quick log */}
+          {/* Quick log buttons */}
           <div className="space-y-3">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Quick Log Buttons</h2>
             <p className="text-xs text-muted-foreground">Choose which buttons appear at the top of your dashboard.</p>
             <div className="grid grid-cols-2 gap-2">
               {QUICK_LOG_OPTIONS.map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => toggleItem(quickLog, setQuickLog, id)}
+                <button key={id} type="button" onClick={() => toggleItem(quickLog, setQuickLog, id)}
                   className={`px-3 py-2.5 rounded-xl text-sm font-medium border transition-all press-effect text-left ${
-                    quickLog.includes(id)
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border bg-secondary text-muted-foreground'
-                  }`}
-                >
+                    quickLog.includes(id) ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-secondary text-muted-foreground'
+                  }`}>
                   {quickLog.includes(id) ? '✓ ' : ''}{label}
                 </button>
               ))}
@@ -197,17 +194,27 @@ export default function SettingsPage() {
             <p className="text-xs text-muted-foreground">Choose which stat cards appear on your dashboard.</p>
             <div className="grid grid-cols-2 gap-2">
               {DASHBOARD_STAT_OPTIONS.map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => toggleItem(dashboardStats, setDashboardStats, id)}
+                <button key={id} type="button" onClick={() => toggleItem(dashboardStats, setDashboardStats, id)}
                   className={`px-3 py-2.5 rounded-xl text-sm font-medium border transition-all press-effect text-left ${
-                    dashboardStats.includes(id)
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border bg-secondary text-muted-foreground'
-                  }`}
-                >
+                    dashboardStats.includes(id) ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-secondary text-muted-foreground'
+                  }`}>
                   {dashboardStats.includes(id) ? '✓ ' : ''}{label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Streak conditions */}
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">🔥 Streak Goals</h2>
+            <p className="text-xs text-muted-foreground">All selected conditions must be met each day to keep your streak alive.</p>
+            <div className="grid grid-cols-1 gap-2">
+              {STREAK_CONDITIONS.map(({ id, label }) => (
+                <button key={id} type="button" onClick={() => toggleItem(streakConditions, setStreakConditions, id)}
+                  className={`px-3 py-2.5 rounded-xl text-sm font-medium border transition-all press-effect text-left ${
+                    streakConditions.includes(id) ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-secondary text-muted-foreground'
+                  }`}>
+                  {streakConditions.includes(id) ? '✓ ' : ''}{label}
                 </button>
               ))}
             </div>
